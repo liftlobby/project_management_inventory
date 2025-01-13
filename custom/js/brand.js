@@ -1,269 +1,273 @@
 var manageBrandTable;
 
 $(document).ready(function() {
-	// top bar active
-	$('#navBrand').addClass('active');
-	
-	// manage brand table
-	manageBrandTable = $("#manageBrandTable").DataTable({
-		'ajax': 'php_action/fetchBrand.php',
-		'order': []		
-	});
+    // top bar active
+    $('#navBrand').addClass('active');
+    
+    // manage brand table
+    manageBrandTable = $("#manageBrandTable").DataTable({
+        'ajax': 'php_action/fetchBrand.php',
+        'order': []        
+    });
 
-	// submit brand form function
-	$("#submitBrandForm").unbind('submit').bind('submit', function() {
-		// remove the error text
-		$(".text-danger").remove();
-		// remove the form error
-		$('.form-group').removeClass('has-error').removeClass('has-success');			
+    // submit brand form function
+    $("#submitBrandForm").unbind('submit').bind('submit', function() {
+        // remove the error text
+        $(".text-danger").remove();
+        // remove the form error
+        $('.form-group').removeClass('has-error').removeClass('has-success');            
 
-		var brandName = $("#brandName").val();
-		var brandStatus = $("#brandStatus").val();
+        var brandName = $("#brandName").val();
+        var brandStatus = $("#brandStatus").val();
 
-		if(brandName == "") {
-			$("#brandName").after('<p class="text-danger">Brand Name field is required</p>');
-			$('#brandName').closest('.form-group').addClass('has-error');
-		} else {
-			// remov error text field
-			$("#brandName").find('.text-danger').remove();
-			// success out for form 
-			$("#brandName").closest('.form-group').addClass('has-success');	  	
-		}
+        if(brandName == "") {
+            $("#brandName").after('<p class="text-danger">Brand Name field is required</p>');
+            $('#brandName').closest('.form-group').addClass('has-error');
+        } else {
+            $("#brandName").find('.text-danger').remove();
+            $("#brandName").closest('.form-group').addClass('has-success');      
+        }
 
-		if(brandStatus == "") {
-			$("#brandStatus").after('<p class="text-danger">Brand Name field is required</p>');
+        if(brandStatus == "") {
+            $("#brandStatus").after('<p class="text-danger">Status field is required</p>');
+            $('#brandStatus').closest('.form-group').addClass('has-error');
+        } else {
+            $("#brandStatus").find('.text-danger').remove();
+            $("#brandStatus").closest('.form-group').addClass('has-success');      
+        }
 
-			$('#brandStatus').closest('.form-group').addClass('has-error');
-		} else {
-			// remov error text field
-			$("#brandStatus").find('.text-danger').remove();
-			// success out for form 
-			$("#brandStatus").closest('.form-group').addClass('has-success');	  	
-		}
+        if(brandName && brandStatus) {
+            var form = $(this);
+            $("#createBrandBtn").button('loading');
 
-		if(brandName && brandStatus) {
-			var form = $(this);
-			// button loading
-			$("#createBrandBtn").button('loading');
+            $.ajax({
+                url: form.attr('action'),
+                type: form.attr('method'),
+                data: form.serialize(),
+                dataType: 'json',
+                success: function(response) {
+                    $("#createBrandBtn").button('reset');
+                    if(response.success == true) {
+                        manageBrandTable.ajax.reload(null, false);                        
 
-			$.ajax({
-				url : form.attr('action'),
-				type: form.attr('method'),
-				data: form.serialize(),
-				dataType: 'json',
-				success:function(response) {
-					// button loading
-					$("#createBrandBtn").button('reset');
+                        $("#submitBrandForm")[0].reset();
+                        $(".text-danger").remove();
+                        $('.form-group').removeClass('has-error').removeClass('has-success');
 
-					if(response.success == true) {
-						// reload the manage member table 
-						manageBrandTable.ajax.reload(null, false);						
+                        $("#add-brand-messages").html('<div class="alert alert-success">'+
+                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                        '</div>');
 
-  	  			// reset the form text
-						$("#submitBrandForm")[0].reset();
-						// remove the error text
-						$(".text-danger").remove();
-						// remove the form error
-						$('.form-group').removeClass('has-error').removeClass('has-success');
-  	  			
-  	  			$('#add-brand-messages').html('<div class="alert alert-success">'+
-            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-          '</div>');
-
-  	  			$(".alert-success").delay(500).show(10, function() {
-							$(this).delay(3000).hide(10, function() {
-								$(this).remove();
-							});
-						}); // /.alert
-					}  // if
-
-				} // /success
-			}); // /ajax	
-		} // if
-
-		return false;
-	}); // /submit brand form function
-
+                        $(".alert-success").delay(500).show(10, function() {
+                            $(this).delay(3000).hide(10, function() {
+                                $(this).remove();
+                            });
+                        }); // /.alert
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $("#createBrandBtn").button('reset');
+                    $("#add-brand-messages").html('<div class="alert alert-danger">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred. Please try again.'+
+                    '</div>');
+                }
+            });    
+        }
+        return false;
+    });
 });
 
+// edit brands function
 function editBrands(brandId = null) {
-	if(brandId) {
-		// remove hidden brand id text
-		$('#brandId').remove();
+    if(brandId) {
+        $('#editBrandModal').modal('show');
+        
+        // Get CSRF token from the edit form
+        var csrfToken = $('#editBrandForm input[name="csrf_token"]').val();
+        
+        // Clear previous data
+        $('#brandId').remove();
+        $('.text-danger').remove();
+        $('.form-group').removeClass('has-error').removeClass('has-success');
 
-		// remove the error 
-		$('.text-danger').remove();
-		// remove the form-error
-		$('.form-group').removeClass('has-error').removeClass('has-success');
+        // Show loading state
+        $('.modal-loading').removeClass('div-hide');
+        $('.edit-brand-result').addClass('div-hide');
+        $('.editBrandFooter').addClass('div-hide');
 
-		// modal loading
-		$('.modal-loading').removeClass('div-hide');
-		// modal result
-		$('.edit-brand-result').addClass('div-hide');
-		// modal footer
-		$('.editBrandFooter').addClass('div-hide');
+        $.ajax({
+            url: 'php_action/fetchSelectedBrand.php',
+            type: 'post',
+            data: {
+                brandId: brandId
+            },
+            dataType: 'json',
+            success: function(response) {
+                // Hide loading state
+                $('.modal-loading').addClass('div-hide');
+                
+                if(!response.success) {
+                    $('.edit-brand-result').html('<div class="alert alert-danger">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                    '</div>').removeClass('div-hide');
+                    return;
+                }
 
-		$.ajax({
-			url: 'php_action/fetchSelectedBrand.php',
-			type: 'post',
-			data: {brandId : brandId},
-			dataType: 'json',
-			success:function(response) {
-				// modal loading
-				$('.modal-loading').addClass('div-hide');
-				// modal result
-				$('.edit-brand-result').removeClass('div-hide');
-				// modal footer
-				$('.editBrandFooter').removeClass('div-hide');
+                // Show edit form
+                $('.edit-brand-result').removeClass('div-hide');
+                $('.editBrandFooter').removeClass('div-hide');
 
-				// setting the brand name value 
-				$('#editBrandName').val(response.brand_name);
-				// setting the brand status value
-				$('#editBrandStatus').val(response.brand_active);
-				// brand id 
-				$(".editBrandFooter").after('<input type="hidden" name="brandId" id="brandId" value="'+response.brand_id+'" />');
+                // Populate form with data
+                $('#editBrandName').val(response.brand_name);
+                $('#editBrandStatus').val(response.brand_active);
+                
+                // Add brandId to the form
+                $(".editBrandFooter").after('<input type="hidden" name="brandId" id="brandId" value="'+response.brand_id+'" />');
 
-				// update brand form 
-				$('#editBrandForm').unbind('submit').bind('submit', function() {
+                // Handle form submission
+                $('#editBrandForm').unbind('submit').bind('submit', function() {
+                    var form = $(this);
+                    $(".text-danger").remove();
+                    $('.form-group').removeClass('has-error').removeClass('has-success');
 
-					// remove the error text
-					$(".text-danger").remove();
-					// remove the form error
-					$('.form-group').removeClass('has-error').removeClass('has-success');			
+                    var brandName = $('#editBrandName').val();
+                    var brandStatus = $('#editBrandStatus').val();
 
-					var brandName = $('#editBrandName').val();
-					var brandStatus = $('#editBrandStatus').val();
+                    if(brandName == "") {
+                        $("#editBrandName").after('<p class="text-danger">Brand Name field is required</p>');
+                        $('#editBrandName').closest('.form-group').addClass('has-error');
+                    } else {
+                        $("#editBrandName").find('.text-danger').remove();
+                        $("#editBrandName").closest('.form-group').addClass('has-success');      
+                    }
 
-					if(brandName == "") {
-						$("#editBrandName").after('<p class="text-danger">Brand Name field is required</p>');
-						$('#editBrandName').closest('.form-group').addClass('has-error');
-					} else {
-						// remov error text field
-						$("#editBrandName").find('.text-danger').remove();
-						// success out for form 
-						$("#editBrandName").closest('.form-group').addClass('has-success');	  	
-					}
+                    if(brandStatus == "") {
+                        $("#editBrandStatus").after('<p class="text-danger">Status field is required</p>');
+                        $('#editBrandStatus').closest('.form-group').addClass('has-error');
+                    } else {
+                        $("#editBrandStatus").find('.text-danger').remove();
+                        $("#editBrandStatus").closest('.form-group').addClass('has-success');      
+                    }
 
-					if(brandStatus == "") {
-						$("#editBrandStatus").after('<p class="text-danger">Brand Name field is required</p>');
+                    if(brandName && brandStatus) {
+                        $('#editBrandBtn').button('loading');
 
-						$('#editBrandStatus').closest('.form-group').addClass('has-error');
-					} else {
-						// remove error text field
-						$("#editBrandStatus").find('.text-danger').remove();
-						// success out for form 
-						$("#editBrandStatus").closest('.form-group').addClass('has-success');	  	
-					}
+                        $.ajax({
+                            url: form.attr('action'),
+                            type: form.attr('method'),
+                            data: form.serialize(),
+                            dataType: 'json',
+                            success: function(response) {
+                                $('#editBrandBtn').button('reset');
+                                
+                                if(response.success == true) {
+                                    manageBrandTable.ajax.reload(null, false);                                                                              
+                                    $(".text-danger").remove();
+                                    $('.form-group').removeClass('has-error').removeClass('has-success');
+                                    $('#editBrandModal').modal('hide');
+                                    
+                                    $('.edit-brand-messages').html('<div class="alert alert-success">'+
+                                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                                        '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                                    '</div>');
 
-					if(brandName && brandStatus) {
-						var form = $(this);
-
-						// submit btn
-						$('#editBrandBtn').button('loading');
-
-						$.ajax({
-							url: form.attr('action'),
-							type: form.attr('method'),
-							data: form.serialize(),
-							dataType: 'json',
-							success:function(response) {
-
-								if(response.success == true) {
-									console.log(response);
-									// submit btn
-									$('#editBrandBtn').button('reset');
-
-									// reload the manage member table 
-									manageBrandTable.ajax.reload(null, false);								  	  										
-									// remove the error text
-									$(".text-danger").remove();
-									// remove the form error
-									$('.form-group').removeClass('has-error').removeClass('has-success');
-			  	  			
-			  	  			$('#edit-brand-messages').html('<div class="alert alert-success">'+
-			            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-			            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-			          '</div>');
-
-			  	  			$(".alert-success").delay(500).show(10, function() {
-										$(this).delay(3000).hide(10, function() {
-											$(this).remove();
-										});
-									}); // /.alert
-								} // /if
-									
-							}// /success
-						});	 // /ajax												
-					} // /if
-
-					return false;
-				}); // /update brand form
-
-			} // /success
-		}); // ajax function
-
-	} else {
-		alert('error!! Refresh the page again');
-	}
-} // /edit brands function
+                                    $(".alert-success").delay(500).show(10, function() {
+                                        $(this).delay(3000).hide(10, function() {
+                                            $(this).remove();
+                                        });
+                                    });
+                                } else {
+                                    $('.edit-brand-messages').html('<div class="alert alert-danger">'+
+                                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                                    '</div>');
+                                }
+                            },
+                            error: function(xhr, status, error) {
+                                $('#editBrandBtn').button('reset');
+                                console.error('Error:', error);
+                                console.error('Status:', status);
+                                console.error('Response:', xhr.responseText);
+                                
+                                $('.edit-brand-messages').html('<div class="alert alert-danger">'+
+                                    '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                                    '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred. Please try again.'+
+                                '</div>');
+                            }
+                        });    
+                    }
+                    return false;
+                });
+            },
+            error: function(xhr, status, error) {
+                $('.modal-loading').addClass('div-hide');
+                console.error('Error:', error);
+                console.error('Status:', status);
+                console.error('Response:', xhr.responseText);
+                
+                $('.edit-brand-result').html('<div class="alert alert-danger">'+
+                    '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                    '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred while fetching brand data.'+
+                '</div>').removeClass('div-hide');
+            }
+        });
+    }
+}
 
 function removeBrands(brandId = null) {
-	if(brandId) {
-		$('#removeBrandId').remove();
-		$.ajax({
-			url: 'php_action/fetchSelectedBrand.php',
-			type: 'post',
-			data: {brandId : brandId},
-			dataType: 'json',
-			success:function(response) {
-				$('.removeBrandFooter').after('<input type="hidden" name="removeBrandId" id="removeBrandId" value="'+response.brand_id+'" /> ');
+    if(brandId) {
+        $('#removeMemberModal').modal('show');
+        
+        $('#removeBrandBtn').unbind('click').bind('click', function() {
+            $(this).button('loading');
 
-				// click on remove button to remove the brand
-				$("#removeBrandBtn").unbind('click').bind('click', function() {
-					// button loading
-					$("#removeBrandBtn").button('loading');
+            $.ajax({
+                url: 'php_action/removeBrand.php',
+                type: 'post',
+                data: {
+                    brandId: brandId,
+                    csrf_token: $('input[name="csrf_token"]').val()
+                },
+                dataType: 'json',
+                success: function(response) {
+                    $('#removeBrandBtn').button('reset');
+                    
+                    if(response.success == true) {
+                        $('#removeMemberModal').modal('hide');
+                        manageBrandTable.ajax.reload(null, false);
+                        
+                        $('.remove-messages').html('<div class="alert alert-success">'+
+                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                        '</div>');
 
-					$.ajax({
-						url: 'php_action/removeBrand.php',
-						type: 'post',
-						data: {brandId : brandId},
-						dataType: 'json',
-						success:function(response) {
-							console.log(response);
-							// button loading
-							$("#removeBrandBtn").button('reset');
-							if(response.success == true) {
-
-								// hide the remove modal 
-								$('#removeMemberModal').modal('hide');
-
-								// reload the brand table 
-								manageBrandTable.ajax.reload(null, false);
-								
-								$('.remove-messages').html('<div class="alert alert-success">'+
-			            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-			            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-			          '</div>');
-
-			  	  			$(".alert-success").delay(500).show(10, function() {
-										$(this).delay(3000).hide(10, function() {
-											$(this).remove();
-										});
-									}); // /.alert
-							} else {
-
-							} // /else
-						} // /response messages
-					}); // /ajax function to remove the brand
-
-				}); // /click on remove button to remove the brand
-
-			} // /success
-		}); // /ajax
-
-		$('.removeBrandFooter').after();
-	} else {
-		alert('error!! Refresh the page again');
-	}
-} // /remove brands function
+                        $(".alert-success").delay(500).show(10, function() {
+                            $(this).delay(3000).hide(10, function() {
+                                $(this).remove();
+                            });
+                        });
+                    } else {
+                        $('.remove-messages').html('<div class="alert alert-danger">'+
+                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                            '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                        '</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $('#removeBrandBtn').button('reset');
+                    console.error('Error:', error);
+                    console.error('Status:', status);
+                    console.error('Response:', xhr.responseText);
+                    
+                    $('.remove-messages').html('<div class="alert alert-danger">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred. Please try again.'+
+                    '</div>');
+                }
+            });
+        });
+    }
+}

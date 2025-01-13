@@ -49,7 +49,7 @@ if($_POST) {
     <table>
         <tr>
             <th>Order Date</th>
-            <th>Client Name</th>
+            <th>Staff Name</th>
             <th>Contact</th>
             <th>Items</th>
             <th>Total Items</th>

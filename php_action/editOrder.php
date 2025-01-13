@@ -10,41 +10,55 @@ if($_POST) {
     $orderDate = date('Y-m-d', strtotime($_POST['orderDate']));
     $clientName = $_POST['clientName'];
     $clientContact = $_POST['clientContact'];
-    $restockReason = $_POST['restockReason'];
+    $paid = $_POST['paid'] ?? 0;
+    $discount = $_POST['discount'] ?? 0;
+    $paymentType = $_POST['paymentType'] ?? '';
+    $paymentStatus = $_POST['paymentStatus'] ?? '';
+    $restockReason = $_POST['restockReason'] ?? '';
 
     try {
-        $sql = "UPDATE orders SET order_date = ?, client_name = ?, client_contact = ?, restock_reason = ? WHERE order_id = ?";
-        $stmt = SecurityUtils::prepareAndExecute($sql, "ssssi", [
+        // Begin transaction
+        $connect->begin_transaction();
+
+        // Update orders table
+        $sql = "UPDATE orders SET order_date = ?, client_name = ?, client_contact = ?, 
+                paid = ?, discount = ?, payment_type = ?, payment_status = ?, restock_reason = ? 
+                WHERE order_id = ?";
+        
+        $stmt = SecurityUtils::prepareAndExecute($sql, "ssssssssi", [
             $orderDate,
             $clientName,
             $clientContact,
+            $paid,
+            $discount,
+            $paymentType,
+            $paymentStatus,
             $restockReason,
             $orderId
         ]);
 
-        $readyToUpdateOrderItem = false;
-        if($stmt->affected_rows > 0) {
-            $readyToUpdateOrderItem = true;
+        if($stmt->affected_rows < 0) {
+            throw new Exception("Failed to update order");
         }
 
-        if($readyToUpdateOrderItem) {
-            // remove the order item data from order item table
+        // Only proceed with order items if they exist
+        if(isset($_POST['productName']) && is_array($_POST['productName'])) {
+            // Remove existing order items
             $removeOrderSql = "DELETE FROM order_item WHERE order_id = ?";
             SecurityUtils::prepareAndExecute($removeOrderSql, "i", [$orderId]);
 
-            // update product quantity
+            // Add new order items
             for($x = 0; $x < count($_POST['productName']); $x++) {
-                // Update product quantity
-                $updateProductQuantitySql = "UPDATE product SET quantity = quantity - ? WHERE product_id = ?";
+                $updateProductQuantitySql = "UPDATE product 
+                    SET quantity = quantity - ? 
+                    WHERE product_id = ?";
                 SecurityUtils::prepareAndExecute($updateProductQuantitySql, "si", [
                     $_POST['quantity'][$x],
                     $_POST['productName'][$x]
                 ]);
 
-                // add order item
                 $orderItemSql = "INSERT INTO order_item (order_id, product_id, quantity, rate, total) 
-                VALUES (?, ?, ?, ?, ?)";
-
+                    VALUES (?, ?, ?, ?, ?)";
                 SecurityUtils::prepareAndExecute($orderItemSql, "iisss", [
                     $orderId,
                     $_POST['productName'][$x],
@@ -52,19 +66,21 @@ if($_POST) {
                     $_POST['rate'][$x],
                     $_POST['totalValue'][$x]
                 ]);
-            } // /for quantity
-
-            $valid['success'] = true;
-            $valid['messages'] = "Order Successfully Updated";
-        } else {
-            $valid['success'] = false;
-            $valid['messages'] = "Error updating order";
+            }
         }
-            
+
+        // If we got here, commit the transaction
+        $connect->commit();
+        
+        $valid['success'] = true;
+        $valid['messages'] = "Order Successfully Updated";
+        
     } catch (Exception $e) {
+        // Something went wrong, rollback
+        $connect->rollback();
+        error_log("Error in editOrder.php: " . $e->getMessage());
         $valid['success'] = false;
-        $valid['messages'] = "Error: " . $e->getMessage();
-        error_log("Order update error: " . $e->getMessage());
+        $valid['messages'] = "Error updating order: " . $e->getMessage();
     }
 
     $connect->close();

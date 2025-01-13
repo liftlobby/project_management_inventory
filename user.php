@@ -1,6 +1,5 @@
 <?php require_once 'php_action/db_connect.php' ?>
 <?php require_once 'includes/header.php'; ?>
-
 <div class="row">
 	<div class="col-md-12">
 
@@ -30,7 +29,6 @@
 					</thead>
 				</table>
 				<!-- /table -->
-
 			</div> <!-- /panel-body -->
 		</div> <!-- /panel -->		
 	</div> <!-- /col-md-12 -->
@@ -51,8 +49,7 @@
 	      <div class="modal-body" style="max-height:450px; overflow:auto;">
 
 	      	<div id="add-user-messages"></div>
-
-	      		     	           	       
+                <?php outputCSRFTokenField(); ?>
 
 	        <div class="form-group">
 	        	<label for="userName" class="col-sm-3 control-label">User Name: </label>
@@ -122,10 +119,11 @@
 				    
 				    <!-- product image -->
 				    <div role="tabpanel" class="tab-pane active" id="userInfo">
-				    	<form class="form-horizontal" id="editUserForm" action="php_action/editUser.php" method="POST">				    
+				    	<form class="form-horizontal" id="editUserForm" action="php_action/editUser.php" method="POST">
 				    	<br />
 
 				    	<div id="edit-user-messages"></div>
+                        <?php outputCSRFTokenField(); ?>
 
 				    	<div class="form-group">
 			        		<label for="edituserName" class="col-sm-3 control-label">User Name: </label>
@@ -143,8 +141,7 @@
 							    </div>
 				        </div> <!-- /form-group-->	        	 
 
-			         
-         	        
+			 　　 　
 
 			        <div class="modal-footer editUserFooter">
 				        <button type="button" class="btn btn-default" data-dismiss="modal"> <i class="glyphicon glyphicon-remove-sign"></i> Close</button>
@@ -167,6 +164,7 @@
   <!-- /modal-dailog -->
 </div>
 <!-- /categories brand -->
+
 
 <!-- categories brand -->
 <div class="modal fade" tabindex="-1" role="dialog" id="removeUserModal">

@@ -31,6 +31,7 @@ $connect->close();
 
 				<form action="php_action/changeUsername.php" method="post" class="form-horizontal" id="changeUsernameForm">
 					<fieldset>
+						<?php outputCSRFTokenField(); ?>
 						<legend>Change Username</legend>
 
 						<div class="changeUsenrameMessages"></div>			
@@ -53,6 +54,7 @@ $connect->close();
 
 				<form action="php_action/changePassword.php" method="post" class="form-horizontal" id="changePasswordForm">
 					<fieldset>
+						<?php outputCSRFTokenField(); ?>
 						<legend>Change Password</legend>
 
 						<div class="changePasswordMessages"></div>

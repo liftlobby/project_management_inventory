@@ -2,78 +2,211 @@
 require_once 'db_connect.php';
 
 class SecurityUtils {
-    private static $PEPPER = "MRDIY_2025"; // Change this to a random string in production
-    private static $MAX_LOGIN_ATTEMPTS = 5;
-    private static $LOCKOUT_TIME = 900; // 15 minutes in seconds
+    private static $config;
     
-    // Argon2id password hashing
-    public static function hashPassword($password) {
-        $options = [
-            'memory_cost' => 65536,  // 64MB
-            'time_cost'   => 4,      // 4 iterations
-            'threads'     => 3       // 3 parallel threads
-        ];
-        return password_hash($password . self::$PEPPER, PASSWORD_ARGON2ID, $options);
+    public static function init() {
+        if (!isset(self::$config)) {
+            self::$config = require_once __DIR__ . '/../config/security_config.php';
+            self::createMFATables();
+        }
     }
     
-    // Password verification
-    public static function verifyPassword($password, $hash) {
-        return password_verify($password . self::$PEPPER, $hash);
+    public static function getConfig($key) {
+        if (!isset(self::$config)) {
+            self::init();
+        }
+        return self::$config[$key] ?? null;
     }
     
     // Prepare and execute SQL statements safely
     public static function prepareAndExecute($sql, $types, $params) {
         global $connect;
-        $stmt = $connect->prepare($sql);
-        if ($stmt === false) {
-            throw new Exception("Failed to prepare statement: " . $connect->error);
+        
+        try {
+            $stmt = $connect->prepare($sql);
+            if ($stmt === false) {
+                throw new Exception("Failed to prepare statement: " . $connect->error);
+            }
+            
+            if (!empty($params)) {
+                $stmt->bind_param($types, ...$params);
+            }
+            
+            if (!$stmt->execute()) {
+                throw new Exception("Failed to execute statement: " . $stmt->error);
+            }
+            
+            return $stmt;
+        } catch (Exception $e) {
+            error_log("Database error in prepareAndExecute: " . $e->getMessage());
+            throw $e;
         }
-        if (!empty($params)) {
-            $stmt->bind_param($types, ...$params);
+    }
+    
+    // Generate MFA code
+    public static function generateMFACode() {
+        if (!isset(self::$config)) {
+            self::init();
         }
-        $stmt->execute();
-        return $stmt;
+        
+        $length = self::getConfig('MFA_CODE_LENGTH');
+        $code = '';
+        for ($i = 0; $i < $length; $i++) {
+            $code .= mt_rand(0, 9);
+        }
+        error_log("Generated MFA code: " . $code);
+        return $code;
+    }
+    
+    // Store MFA code
+    public static function storeMFACode($userId, $code) {
+        if (!isset(self::$config)) {
+            self::init();
+        }
+        
+        try {
+            error_log("Attempting to store MFA code for user: " . $userId);
+            
+            // First, clean up expired codes
+            $expiry = self::getConfig('MFA_CODE_EXPIRY');
+            $sql = "DELETE FROM mfa_codes WHERE created_at < (NOW() - INTERVAL ? SECOND)";
+            self::prepareAndExecute($sql, "i", [$expiry]);
+            
+            // Then store new code
+            $sql = "INSERT INTO mfa_codes (user_id, code, created_at) VALUES (?, ?, NOW())";
+            self::prepareAndExecute($sql, "is", [$userId, $code]);
+            
+            error_log("Successfully stored MFA code");
+            return true;
+        } catch (Exception $e) {
+            error_log("Failed to store MFA code: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    // Verify MFA code
+    public static function verifyMFACode($userId, $code) {
+        if (!isset(self::$config)) {
+            self::init();
+        }
+        
+        try {
+            error_log("Attempting to verify MFA code for user: " . $userId);
+            
+            $expiry = self::getConfig('MFA_CODE_EXPIRY');
+            $sql = "SELECT * FROM mfa_codes WHERE user_id = ? AND code = ? AND 
+                    created_at > (NOW() - INTERVAL ? SECOND)";
+            $stmt = self::prepareAndExecute($sql, "isi", [$userId, $code, $expiry]);
+            $result = $stmt->get_result();
+            
+            if ($result->num_rows === 1) {
+                error_log("Valid MFA code found");
+                // Delete the used code
+                $sql = "DELETE FROM mfa_codes WHERE user_id = ? AND code = ?";
+                self::prepareAndExecute($sql, "is", [$userId, $code]);
+                return true;
+            }
+            
+            error_log("No valid MFA code found");
+            return false;
+        } catch (Exception $e) {
+            error_log("Failed to verify MFA code: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    // Create MFA tables if they don't exist
+    private static function createMFATables() {
+        global $connect;
+        
+        try {
+            error_log("Attempting to create MFA tables");
+            
+            $sql = "CREATE TABLE IF NOT EXISTS mfa_codes (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                user_id INT NOT NULL,
+                code VARCHAR(10) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                INDEX (user_id),
+                INDEX (created_at)
+            )";
+            
+            if (!$connect->query($sql)) {
+                throw new Exception("Failed to create MFA tables: " . $connect->error);
+            }
+            
+            error_log("MFA tables created successfully");
+        } catch (Exception $e) {
+            error_log("Failed to create MFA tables: " . $e->getMessage());
+            throw $e;
+        }
+    }
+    
+    // Password verification with pepper
+    public static function verifyPassword($password, $hash) {
+        if (!isset(self::$config)) {
+            self::init();
+        }
+        return password_verify($password . self::getConfig('PEPPER'), $hash);
     }
     
     // Check login attempts
     public static function checkLoginAttempts($username) {
-        global $connect;
+        if (!isset(self::$config)) {
+            self::init();
+        }
         
-        // Clean up old attempts first
-        $sql = "DELETE FROM login_attempts WHERE attempt_time < (NOW() - INTERVAL 15 MINUTE)";
-        self::prepareAndExecute($sql, "", []);
-        
-        // Count recent attempts
-        $sql = "SELECT COUNT(*) as count FROM login_attempts WHERE username = ? AND attempt_time > (NOW() - INTERVAL 15 MINUTE)";
-        $stmt = self::prepareAndExecute($sql, "s", [$username]);
-        $result = $stmt->get_result()->fetch_assoc();
-        
-        return $result['count'] >= self::$MAX_LOGIN_ATTEMPTS;
+        try {
+            // Clean up old attempts
+            $lockoutTime = self::getConfig('LOCKOUT_TIME');
+            $sql = "DELETE FROM login_attempts WHERE attempt_time < (NOW() - INTERVAL ? SECOND)";
+            self::prepareAndExecute($sql, "i", [$lockoutTime]);
+            
+            // Count recent attempts
+            $sql = "SELECT COUNT(*) as count FROM login_attempts WHERE username = ? AND 
+                    attempt_time > (NOW() - INTERVAL ? SECOND)";
+            $stmt = self::prepareAndExecute($sql, "si", [$username, $lockoutTime]);
+            $result = $stmt->get_result()->fetch_assoc();
+            
+            return $result['count'] >= self::getConfig('MAX_LOGIN_ATTEMPTS');
+        } catch (Exception $e) {
+            error_log("Failed to check login attempts: " . $e->getMessage());
+            return false;
+        }
     }
     
     // Record login attempt
     public static function recordLoginAttempt($username) {
-        $sql = "INSERT INTO login_attempts (username, attempt_time) VALUES (?, NOW())";
-        self::prepareAndExecute($sql, "s", [$username]);
-    }
-    
-    // Generate CSRF token
-    public static function generateCSRFToken() {
-        if (empty($_SESSION['csrf_token'])) {
-            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        try {
+            $sql = "INSERT INTO login_attempts (username, attempt_time) VALUES (?, NOW())";
+            self::prepareAndExecute($sql, "s", [$username]);
+        } catch (Exception $e) {
+            error_log("Failed to record login attempt: " . $e->getMessage());
         }
-        return $_SESSION['csrf_token'];
     }
     
-    // Verify CSRF token
-    public static function verifyCSRFToken($token) {
-        return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
+    // Argon2id password hashing
+    public static function hashPassword($password) {
+        if (!isset(self::$config)) {
+            self::init();
+        }
+        
+        $options = [
+            'memory_cost' => self::getConfig('MEMORY_COST'),  
+            'time_cost'   => self::getConfig('TIME_COST'),     
+            'threads'     => self::getConfig('THREADS')       
+        ];
+        return password_hash($password . self::getConfig('PEPPER'), PASSWORD_ARGON2ID, $options);
     }
     
     // Password complexity check
     public static function isPasswordComplex($password) {
+        if (!isset(self::$config)) {
+            self::init();
+        }
+        
         // At least 8 characters
-        if (strlen($password) < 8) return false;
+        if (strlen($password) < self::getConfig('MIN_PASSWORD_LENGTH')) return false;
         
         // Check for at least one uppercase letter
         if (!preg_match('/[A-Z]/', $password)) return false;
@@ -88,6 +221,19 @@ class SecurityUtils {
         if (!preg_match('/[!@#$%^&*()\-_=+{};:,<.>]/', $password)) return false;
         
         return true;
+    }
+    
+    // Generate CSRF token
+    public static function generateCSRFToken() {
+        if (empty($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+        return $_SESSION['csrf_token'];
+    }
+    
+    // Verify CSRF token
+    public static function verifyCSRFToken($token) {
+        return isset($_SESSION['csrf_token']) && hash_equals($_SESSION['csrf_token'], $token);
     }
 }
 
@@ -125,4 +271,7 @@ try {
 } catch (Exception $e) {
     error_log("Security tables creation failed: " . $e->getMessage());
 }
+
+// Initialize SecurityUtils
+SecurityUtils::init();
 ?>

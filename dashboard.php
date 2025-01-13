@@ -10,9 +10,9 @@ $orderSql = "SELECT * FROM orders WHERE order_status = 1";
 $orderQuery = $connect->query($orderSql);
 $countOrder = $orderQuery->num_rows;
 
-// Count total products ordered instead of revenue
+// Count total products ordered
 $totalProducts = 0;
-$orderItemSql = "SELECT SUM(quantity) as total FROM order_item 
+$orderItemSql = "SELECT SUM(order_item.quantity) as total FROM order_item 
                  INNER JOIN orders ON order_item.order_id = orders.order_id 
                  WHERE orders.order_status = 1";
 $orderItemQuery = $connect->query($orderItemSql);
@@ -23,14 +23,13 @@ $lowStockSql = "SELECT * FROM product WHERE quantity <= 3 AND status = 1";
 $lowStockQuery = $connect->query($lowStockSql);
 $countLowStock = $lowStockQuery->num_rows;
 
-// Get total orders per user instead of grand total
+// Get total orders per user
 $userwisesql = "SELECT users.username, COUNT(orders.order_id) as totalorder 
                 FROM orders 
                 INNER JOIN users ON orders.user_id = users.user_id 
                 WHERE orders.order_status = 1 
                 GROUP BY orders.user_id";
 $userwiseQuery = $connect->query($userwisesql);
-$userwieseOrder = $userwiseQuery->num_rows;
 
 $connect->close();
 
@@ -47,7 +46,6 @@ $connect->close();
     <link rel="stylesheet" href="assests/plugins/fullcalendar/fullcalendar.print.css" media="print">
 
 <div class="row">
-	<?php  if(isset($_SESSION['userId']) && $_SESSION['userId']==1) { ?>
 	<div class="col-md-4">
 		<div class="panel panel-success">
 			<div class="panel-heading">
@@ -116,7 +114,6 @@ $connect->close();
 		</div>
 	</div>
 
-	<?php  } ?>
 </div> <!--/row-->
 
 <?php require_once 'includes/footer.php'; ?>

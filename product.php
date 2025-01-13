@@ -1,6 +1,5 @@
 <?php require_once 'php_action/db_connect.php' ?>
 <?php require_once 'includes/header.php'; ?>
-
 <div class="row">
 	<div class="col-md-12">
 
@@ -26,17 +25,16 @@
 						<tr>
 							<th style="width:10%;">Photo</th>							
 							<th>Product Name</th>
-							<th>Rate</th>							
-							<th>Quantity</th>
-							<th>Brand</th>
+							<th>Brand</th>							
 							<th>Category</th>
+							<th>Quantity</th>
+							<th>Rate</th>
 							<th>Status</th>
 							<th style="width:15%;">Options</th>
 						</tr>
 					</thead>
 				</table>
 				<!-- /table -->
-
 			</div> <!-- /panel-body -->
 		</div> <!-- /panel -->		
 	</div> <!-- /col-md-12 -->
@@ -46,8 +44,7 @@
 <!-- add product -->
 <div class="modal fade" id="addProductModal" tabindex="-1" role="dialog">
   <div class="modal-dialog">
-    <div class="modal-content">
-
+    <div class="modal-content">    	
     	<form class="form-horizontal" id="submitProductForm" action="php_action/createProduct.php" method="POST" enctype="multipart/form-data">
 	      <div class="modal-header">
 	        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
@@ -57,6 +54,7 @@
 	      <div class="modal-body" style="max-height:450px; overflow:auto;">
 
 	      	<div id="add-product-messages"></div>
+                <?php outputCSRFTokenField(); ?>
 
 	      	<div class="form-group">
 	        	<label for="productImage" class="col-sm-3 control-label">Product Image: </label>
@@ -188,7 +186,7 @@
 				  	
 				    <div role="tabpanel" class="tab-pane active" id="photo">
 				    	<form action="php_action/editProductImage.php" method="POST" id="updateProductImageForm" class="form-horizontal" enctype="multipart/form-data">
-
+				    	<?php outputCSRFTokenField(); ?>
 				    	<br />
 				    	<div id="edit-productPhoto-messages"></div>
 
@@ -209,7 +207,7 @@
 							    <div class="kv-avatar center-block">					        
 							        <input type="file" class="form-control" id="editProductImage" placeholder="Product Name" name="editProductImage" class="file-loading" style="width:auto;"/>
 							    </div>
-						      
+						 　　
 						    </div>
 			        </div> <!-- /form-group-->	     	           	       
 
@@ -224,7 +222,8 @@
 				    </div>
 				    <!-- product image -->
 				    <div role="tabpanel" class="tab-pane" id="productInfo">
-				    	<form class="form-horizontal" id="editProductForm" action="php_action/editProduct.php" method="POST">				    
+				    	<form class="form-horizontal" id="editProductForm" action="php_action/editProduct.php" method="POST">
+				    	<?php outputCSRFTokenField(); ?>
 				    	<br />
 
 				    	<div id="edit-product-messages"></div>
@@ -324,6 +323,7 @@
   <!-- /modal-dailog -->
 </div>
 <!-- /categories brand -->
+
 
 <!-- categories brand -->
 <div class="modal fade" tabindex="-1" role="dialog" id="removeProductModal">

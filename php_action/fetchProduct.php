@@ -29,8 +29,13 @@ if($result->num_rows > 0) {
             : "<label class='label label-danger'>Not Available</label>";
 
         // product image
-        $imageUrl = substr($row[2], 3);
-        $productImage = "<img src='".$imageUrl."' style='height:30px; width:30px;'>";
+        $imagePath = $row[2];
+        // Remove any path prefixes and ensure correct path
+        $imagePath = preg_replace('/^(\.\.\/|stock\/)/', '', $imagePath);
+        if (!preg_match('/^assests\/images\/stock\//', $imagePath)) {
+            $imagePath = 'assests/images/stock/' . basename($imagePath);
+        }
+        $productImage = "<img src='".$imagePath."' style='height:30px; width:30px;' onerror=\"this.src='assests/images/photo_default.png'\">";
 
         // action buttons
         $button = '
