@@ -10,8 +10,16 @@ $(document).ready(function() {
         'order': []        
     });
 
+    // Initialize edit modal with proper options
+    $('#editBrandModal').modal({
+        backdrop: 'static',
+        keyboard: false,
+        show: false
+    });
+
     // submit brand form function
-    $("#submitBrandForm").unbind('submit').bind('submit', function() {
+    $("#submitBrandForm").unbind('submit').bind('submit', function(e) {
+        e.preventDefault();
         // remove the error text
         $(".text-danger").remove();
         // remove the form error
@@ -43,7 +51,7 @@ $(document).ready(function() {
             $.ajax({
                 url: form.attr('action'),
                 type: form.attr('method'),
-                data: form.serialize(),
+                data: form.serialize(), // This will include the CSRF token
                 dataType: 'json',
                 success: function(response) {
                     $("#createBrandBtn").button('reset');
@@ -64,6 +72,11 @@ $(document).ready(function() {
                                 $(this).remove();
                             });
                         }); // /.alert
+                    } else {
+                        $("#add-brand-messages").html('<div class="alert alert-danger">'+
+                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                            '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                        '</div>');
                     }
                 },
                 error: function(xhr, status, error) {
@@ -77,18 +90,65 @@ $(document).ready(function() {
         }
         return false;
     });
+
+    // Edit brand form submit
+    $("#editBrandForm").unbind('submit').bind('submit', function(e) {
+        e.preventDefault();
+        
+        var form = $(this);
+        $("#editBrandBtn").button('loading');
+
+        $.ajax({
+            url: form.attr('action'),
+            type: form.attr('method'),
+            data: form.serialize(), // This will include the CSRF token
+            dataType: 'json',
+            success: function(response) {
+                $("#editBrandBtn").button('reset');
+                if(response.success == true) {
+                    manageBrandTable.ajax.reload(null, false);                  
+
+                    $(".text-danger").remove();
+                    $('.form-group').removeClass('has-error').removeClass('has-success');
+
+                    $("#edit-brand-messages").html('<div class="alert alert-success">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                    '</div>');
+
+                    $("#editBrandModal").modal('hide');
+                } else {
+                    $("#edit-brand-messages").html('<div class="alert alert-danger">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                    '</div>');
+                }
+            },
+            error: function(xhr, status, error) {
+                $("#editBrandBtn").button('reset');
+                $("#edit-brand-messages").html('<div class="alert alert-danger">'+
+                    '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                    '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred. Please try again.'+
+                '</div>');
+            }
+        });
+        return false;
+    });
 });
 
 // edit brands function
 function editBrands(brandId = null) {
     if(brandId) {
-        $('#editBrandModal').modal('show');
+        // Clear previous messages
+        $("#edit-brand-messages").html("");
         
-        // Get CSRF token from the edit form
-        var csrfToken = $('#editBrandForm input[name="csrf_token"]').val();
+        // Show modal
+        $('#editBrandModal').modal({
+            backdrop: 'static',
+            keyboard: false
+        });
         
         // Clear previous data
-        $('#brandId').remove();
         $('.text-danger').remove();
         $('.form-group').removeClass('has-error').removeClass('has-success');
 
@@ -101,117 +161,29 @@ function editBrands(brandId = null) {
             url: 'php_action/fetchSelectedBrand.php',
             type: 'post',
             data: {
-                brandId: brandId
+                brandId: brandId,
+                csrf_token: $('input[name="csrf_token"]').val() // Include CSRF token
             },
             dataType: 'json',
             success: function(response) {
                 // Hide loading state
                 $('.modal-loading').addClass('div-hide');
-                
-                if(!response.success) {
-                    $('.edit-brand-result').html('<div class="alert alert-danger">'+
-                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
-                    '</div>').removeClass('div-hide');
-                    return;
-                }
-
-                // Show edit form
                 $('.edit-brand-result').removeClass('div-hide');
                 $('.editBrandFooter').removeClass('div-hide');
 
-                // Populate form with data
-                $('#editBrandName').val(response.brand_name);
-                $('#editBrandStatus').val(response.brand_active);
-                
-                // Add brandId to the form
-                $(".editBrandFooter").after('<input type="hidden" name="brandId" id="brandId" value="'+response.brand_id+'" />');
-
-                // Handle form submission
-                $('#editBrandForm').unbind('submit').bind('submit', function() {
-                    var form = $(this);
-                    $(".text-danger").remove();
-                    $('.form-group').removeClass('has-error').removeClass('has-success');
-
-                    var brandName = $('#editBrandName').val();
-                    var brandStatus = $('#editBrandStatus').val();
-
-                    if(brandName == "") {
-                        $("#editBrandName").after('<p class="text-danger">Brand Name field is required</p>');
-                        $('#editBrandName').closest('.form-group').addClass('has-error');
-                    } else {
-                        $("#editBrandName").find('.text-danger').remove();
-                        $("#editBrandName").closest('.form-group').addClass('has-success');      
-                    }
-
-                    if(brandStatus == "") {
-                        $("#editBrandStatus").after('<p class="text-danger">Status field is required</p>');
-                        $('#editBrandStatus').closest('.form-group').addClass('has-error');
-                    } else {
-                        $("#editBrandStatus").find('.text-danger').remove();
-                        $("#editBrandStatus").closest('.form-group').addClass('has-success');      
-                    }
-
-                    if(brandName && brandStatus) {
-                        $('#editBrandBtn').button('loading');
-
-                        $.ajax({
-                            url: form.attr('action'),
-                            type: form.attr('method'),
-                            data: form.serialize(),
-                            dataType: 'json',
-                            success: function(response) {
-                                $('#editBrandBtn').button('reset');
-                                
-                                if(response.success == true) {
-                                    manageBrandTable.ajax.reload(null, false);                                                                              
-                                    $(".text-danger").remove();
-                                    $('.form-group').removeClass('has-error').removeClass('has-success');
-                                    $('#editBrandModal').modal('hide');
-                                    
-                                    $('.edit-brand-messages').html('<div class="alert alert-success">'+
-                                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                                        '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-                                    '</div>');
-
-                                    $(".alert-success").delay(500).show(10, function() {
-                                        $(this).delay(3000).hide(10, function() {
-                                            $(this).remove();
-                                        });
-                                    });
-                                } else {
-                                    $('.edit-brand-messages').html('<div class="alert alert-danger">'+
-                                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
-                                    '</div>');
-                                }
-                            },
-                            error: function(xhr, status, error) {
-                                $('#editBrandBtn').button('reset');
-                                console.error('Error:', error);
-                                console.error('Status:', status);
-                                console.error('Response:', xhr.responseText);
-                                
-                                $('.edit-brand-messages').html('<div class="alert alert-danger">'+
-                                    '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                                    '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred. Please try again.'+
-                                '</div>');
-                            }
-                        });    
-                    }
-                    return false;
-                });
+                // Add brand id to form
+                $("#editBrandForm").append('<input type="hidden" name="brandId" id="brandId" value="'+response.brand_id+'" />');
+                // Set brand name
+                $("#editBrandName").val(response.brand_name);
+                // Set brand status
+                $("#editBrandStatus").val(response.brand_active);
             },
             error: function(xhr, status, error) {
                 $('.modal-loading').addClass('div-hide');
-                console.error('Error:', error);
-                console.error('Status:', status);
-                console.error('Response:', xhr.responseText);
-                
-                $('.edit-brand-result').html('<div class="alert alert-danger">'+
+                $("#edit-brand-messages").html('<div class="alert alert-danger">'+
                     '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                    '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred while fetching brand data.'+
-                '</div>').removeClass('div-hide');
+                    '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred while fetching brand data. Please try again.'+
+                '</div>');
             }
         });
     }
@@ -229,7 +201,7 @@ function removeBrands(brandId = null) {
                 type: 'post',
                 data: {
                     brandId: brandId,
-                    csrf_token: $('input[name="csrf_token"]').val()
+                    csrf_token: $('input[name="csrf_token"]').val() // Include CSRF token
                 },
                 dataType: 'json',
                 success: function(response) {

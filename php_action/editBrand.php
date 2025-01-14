@@ -1,6 +1,7 @@
 <?php 	
 require_once 'core.php';
 require_once 'security_utils.php';
+require_once 'csrf_protection.php'; // Added this line to include CSRFProtection class
 
 // Enable error reporting for debugging
 error_reporting(E_ALL);
@@ -10,6 +11,11 @@ $valid['success'] = array('success' => false, 'messages' => array());
 
 if($_POST) {	
     try {
+        // Validate CSRF token first
+        if (!CSRFProtection::validateToken()) {
+            throw new Exception("Invalid CSRF token");
+        }
+
         $brandName = $_POST['editBrandName'];
         $brandStatus = $_POST['editBrandStatus']; 
         $brandId = $_POST['brandId'];

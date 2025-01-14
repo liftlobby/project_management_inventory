@@ -20,92 +20,101 @@ function handleError($message, $error = null) {
 }
 
 try {
-    // Enable error reporting for debugging
-    error_reporting(E_ALL);
-    ini_set('display_errors', 0); // Don't display errors, log them instead
-    
-    error_log("fetchSelectedOrder.php started");
-    error_log("POST data: " . print_r($_POST, true));
-
     // Check if order ID is provided
     if(!isset($_POST['orderId'])) {
         handleError('Order ID not provided');
     }
 
-    $orderId = intval($_POST['orderId']); // Convert to integer
-    error_log("Order ID after conversion: " . $orderId);
+    $orderId = intval($_POST['orderId']);
     
     if ($orderId <= 0) {
         handleError('Invalid order ID');
     }
 
-    // Check database connection
-    if (!$connect) {
-        handleError('Database connection failed', mysqli_connect_error());
-    }
-    error_log("Database connection successful");
-
-    // Prepare and execute query to fetch order details
-    $sql = "SELECT o.order_id, o.order_date, o.client_name, o.client_contact, o.order_status, 
-            COALESCE(SUM(oi.total), 0) as total_amount
-            FROM orders o 
-            LEFT JOIN order_item oi ON o.order_id = oi.order_id
-            WHERE o.order_id = ?
-            GROUP BY o.order_id";
+    // Fetch order details
+    $orderSql = "SELECT o.*, oi.order_item_id, oi.product_id, oi.quantity, oi.rate, oi.total,
+                 p.product_name, p.quantity as available_quantity
+                 FROM orders o
+                 LEFT JOIN order_item oi ON o.order_id = oi.order_id
+                 LEFT JOIN product p ON oi.product_id = p.product_id
+                 WHERE o.order_id = ?";
     
-    error_log("SQL Query: " . $sql);
-    error_log("Order ID for query: " . $orderId);
-
-    $stmt = $connect->prepare($sql);
+    $stmt = $connect->prepare($orderSql);
     if (!$stmt) {
-        handleError('Database prepare error', $connect->error);
+        handleError('Failed to prepare order query', $connect->error);
     }
-    error_log("Statement prepared successfully");
-
+    
     $stmt->bind_param("i", $orderId);
     if (!$stmt->execute()) {
-        handleError('Error executing query', $stmt->error);
+        handleError('Failed to execute order query', $stmt->error);
     }
-    error_log("Query executed successfully");
-
+    
     $result = $stmt->get_result();
-    error_log("Number of rows returned: " . $result->num_rows);
-
-    if($result->num_rows == 1) {
-        $row = $result->fetch_assoc();
-        error_log("Row data: " . print_r($row, true));
-        
-        // Format the response data
-        $response = array(
-            'success' => true,
-            'orderId' => $row['order_id'],
-            'orderDate' => date('m/d/Y', strtotime($row['order_date'])),
-            'clientName' => $row['client_name'],
-            'clientContact' => $row['client_contact'],
-            'orderStatus' => $row['order_status'],
-            'totalAmount' => $row['total_amount']
-        );
-        
-        error_log("Response data: " . print_r($response, true));
-        
-        ob_clean(); // Clear any output
-        header('Content-Type: application/json');
-        echo json_encode($response);
-    } else {
+    
+    if ($result->num_rows === 0) {
         handleError('Order not found');
     }
 
-    $stmt->close();
-    $connect->close();
+    // Initialize response arrays
+    $order = null;
+    $order_items = array();
+    
+    // Process results
+    while ($row = $result->fetch_assoc()) {
+        if (!$order) {
+            $order = array(
+                'order_id' => $row['order_id'],
+                'order_date' => $row['order_date'],
+                'client_name' => $row['client_name'],
+                'client_contact' => $row['client_contact'],
+                'restock_reason' => $row['restock_reason'],
+                'order_status' => $row['order_status']
+            );
+        }
+        
+        if ($row['order_item_id']) {
+            $order_items[] = array(
+                'order_item_id' => $row['order_item_id'],
+                'product_id' => $row['product_id'],
+                'product_name' => $row['product_name'],
+                'quantity' => $row['quantity'],
+                'rate' => $row['rate'],
+                'total' => $row['total'],
+                'available_quantity' => $row['available_quantity']
+            );
+        }
+    }
+    
+    // Fetch all active products for dropdown
+    $productSql = "SELECT product_id, product_name, quantity as available_quantity, rate 
+                   FROM product 
+                   WHERE active = 1 AND status = 1 
+                   ORDER BY product_name ASC";
+    
+    $productResult = $connect->query($productSql);
+    if (!$productResult) {
+        handleError('Failed to fetch products', $connect->error);
+    }
+    
+    $products = array();
+    while ($row = $productResult->fetch_assoc()) {
+        $products[] = $row;
+    }
+
+    // Send success response
+    ob_clean(); // Clear any output
+    header('Content-Type: application/json');
+    echo json_encode(array(
+        'success' => true,
+        'order' => $order,
+        'order_items' => $order_items,
+        'products' => $products
+    ));
 
 } catch (Exception $e) {
-    error_log("Exception caught in fetchSelectedOrder.php");
-    error_log("Error message: " . $e->getMessage());
-    error_log("Stack trace: " . $e->getTraceAsString());
-    handleError('Server error: ' . $e->getMessage());
-} catch (Error $e) {
-    error_log("Error caught in fetchSelectedOrder.php");
-    error_log("Error message: " . $e->getMessage());
-    error_log("Stack trace: " . $e->getTraceAsString());
-    handleError('Server error: ' . $e->getMessage());
+    handleError('Server error: ' . $e->getMessage(), $e);
 }
+
+// Close connections
+if (isset($stmt)) $stmt->close();
+if (isset($connect)) $connect->close();

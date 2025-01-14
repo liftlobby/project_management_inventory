@@ -6,83 +6,67 @@ require_once 'security_utils.php';
 $valid['success'] = array('success' => false, 'messages' => array());
 
 if($_POST) {
-    $orderId = $_POST['orderId'];
-    $orderDate = date('Y-m-d', strtotime($_POST['orderDate']));
-    $clientName = $_POST['clientName'];
-    $clientContact = $_POST['clientContact'];
-    $paid = $_POST['paid'] ?? 0;
-    $discount = $_POST['discount'] ?? 0;
-    $paymentType = $_POST['paymentType'] ?? '';
-    $paymentStatus = $_POST['paymentStatus'] ?? '';
-    $restockReason = $_POST['restockReason'] ?? '';
-
     try {
-        // Begin transaction
-        $connect->begin_transaction();
+        $orderId = $_POST['orderId'];
+        $orderDate = date('Y-m-d', strtotime($_POST['orderDate']));
+        $clientName = $_POST['clientName'];
+        $clientContact = $_POST['clientContact'];
+        $restockReason = $_POST['restockReason'];
 
-        // Update orders table
-        $sql = "UPDATE orders SET order_date = ?, client_name = ?, client_contact = ?, 
-                paid = ?, discount = ?, payment_type = ?, payment_status = ?, restock_reason = ? 
+        // Update order details - only essential fields for restock orders
+        $sql = "UPDATE orders SET 
+                order_date = ?, 
+                client_name = ?, 
+                client_contact = ?,
+                restock_reason = ?
                 WHERE order_id = ?";
-        
-        $stmt = SecurityUtils::prepareAndExecute($sql, "ssssssssi", [
-            $orderDate,
-            $clientName,
+
+        $stmt = $connect->prepare($sql);
+        $stmt->bind_param("ssssi", 
+            $orderDate, 
+            $clientName, 
             $clientContact,
-            $paid,
-            $discount,
-            $paymentType,
-            $paymentStatus,
-            $restockReason,
+            $restockReason, 
             $orderId
-        ]);
-
-        if($stmt->affected_rows < 0) {
-            throw new Exception("Failed to update order");
-        }
-
-        // Only proceed with order items if they exist
-        if(isset($_POST['productName']) && is_array($_POST['productName'])) {
+        );
+        
+        if($stmt->execute()) {
             // Remove existing order items
             $removeOrderSql = "DELETE FROM order_item WHERE order_id = ?";
-            SecurityUtils::prepareAndExecute($removeOrderSql, "i", [$orderId]);
+            $stmt2 = $connect->prepare($removeOrderSql);
+            $stmt2->bind_param("i", $orderId);
+            $stmt2->execute();
+            $stmt2->close();
 
-            // Add new order items
+            // Add new order items - no quantity updates since this is a restock order
             for($x = 0; $x < count($_POST['productName']); $x++) {
-                $updateProductQuantitySql = "UPDATE product 
-                    SET quantity = quantity - ? 
-                    WHERE product_id = ?";
-                SecurityUtils::prepareAndExecute($updateProductQuantitySql, "si", [
-                    $_POST['quantity'][$x],
-                    $_POST['productName'][$x]
-                ]);
-
-                $orderItemSql = "INSERT INTO order_item (order_id, product_id, quantity, rate, total) 
-                    VALUES (?, ?, ?, ?, ?)";
-                SecurityUtils::prepareAndExecute($orderItemSql, "iisss", [
+                $orderItemSql = "INSERT INTO order_item (order_id, product_id, quantity) 
+                    VALUES (?, ?, ?)";
+                
+                $stmt3 = $connect->prepare($orderItemSql);
+                $stmt3->bind_param("iis", 
                     $orderId,
                     $_POST['productName'][$x],
-                    $_POST['quantity'][$x],
-                    $_POST['rate'][$x],
-                    $_POST['totalValue'][$x]
-                ]);
+                    $_POST['quantity'][$x]
+                );
+                $stmt3->execute();
+                $stmt3->close();
             }
+
+            $valid['success'] = true;
+            $valid['messages'] = "Restock Order Successfully Updated";
+        } else {
+            $valid['success'] = false;
+            $valid['messages'] = "Error while updating restock order";
         }
 
-        // If we got here, commit the transaction
-        $connect->commit();
+        $stmt->close();
         
-        $valid['success'] = true;
-        $valid['messages'] = "Order Successfully Updated";
-        
-    } catch (Exception $e) {
-        // Something went wrong, rollback
-        $connect->rollback();
-        error_log("Error in editOrder.php: " . $e->getMessage());
+    } catch(Exception $e) {
         $valid['success'] = false;
-        $valid['messages'] = "Error updating order: " . $e->getMessage();
+        $valid['messages'] = $e->getMessage();
     }
-
+    
     $connect->close();
     echo json_encode($valid);
 }

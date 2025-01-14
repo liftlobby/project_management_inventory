@@ -10,68 +10,53 @@ if($_POST) {
         $restockReason = $_POST['restockReason'];
         $userid = $_SESSION['userId'];
 
-        $sql = "INSERT INTO orders (order_date, client_name, client_contact, restock_reason, order_status, user_id) 
-                VALUES (?, ?, ?, ?, 1, ?)";
+        // Insert order with order_type = 'restock'
+        $sql = "INSERT INTO orders (order_date, client_name, client_contact, restock_reason, 
+                order_status, user_id, order_type) 
+                VALUES (?, ?, ?, ?, 1, ?, 'restock')";
         
-        $stmt = SecurityUtils::prepareAndExecute($sql, "ssssi", [
+        $stmt = $connect->prepare($sql);
+        $stmt->bind_param("ssssi", 
             $orderDate, 
             $clientName, 
             $clientContact,
             $restockReason,
             $userid
-        ]);
-
-        if($stmt->affected_rows > 0) {
+        );
+        
+        if($stmt->execute()) {
             $order_id = $connect->insert_id;
-
-            $success = true;
             
+            // Add order items - no quantity update since this is a restock order
             for($x = 0; $x < count($_POST['productName']); $x++) {
-                // Update product quantity
-                $updateProductQuantitySql = "UPDATE product SET quantity = quantity - ? WHERE product_id = ?";
-                SecurityUtils::prepareAndExecute($updateProductQuantitySql, "si", [
-                    $_POST['quantity'][$x], 
-                    $_POST['productName'][$x]
-                ]);
-
-                // add order item
-                $orderItemSql = "INSERT INTO order_item (order_id, product_id, quantity, rate, total) 
-                VALUES (?, ?, ?, ?, ?)";
-
-                $stmt = SecurityUtils::prepareAndExecute($orderItemSql, "iisss", [
+                $orderItemSql = "INSERT INTO order_item (order_id, product_id, quantity) 
+                VALUES (?, ?, ?)";
+                
+                $stmt2 = $connect->prepare($orderItemSql);
+                $stmt2->bind_param("iis", 
                     $order_id,
                     $_POST['productName'][$x],
-                    $_POST['quantity'][$x],
-                    $_POST['rateValue'][$x],
-                    $_POST['totalValue'][$x]
-                ]);
-
-                if($stmt->affected_rows <= 0) {
-                    $success = false;
-                }
+                    $_POST['quantity'][$x]
+                );
+                $stmt2->execute();
+                $stmt2->close();
             }
 
-            if($success) {
-                $_SESSION['success_message'] = 'Order successfully created';
-                header('location: ../orders.php');
-                exit();
-            } else {
-                $_SESSION['error_message'] = 'Error adding order items';
-                header('location: ../orders.php');
-                exit();
-            }
+            $valid['success'] = true;
+            $valid['messages'] = "Restock Order Successfully Created";
+            $valid['order_id'] = $order_id;
         } else {
-            $_SESSION['error_message'] = 'Error creating order';
-            header('location: ../orders.php');
-            exit();
+            $valid['success'] = false;
+            $valid['messages'] = "Error while creating restock order";
         }
 
-    } catch (Exception $e) {
-        error_log("Order creation error: " . $e->getMessage());
-        $_SESSION['error_message'] = 'Error: ' . $e->getMessage();
-        header('location: ../orders.php');
-        exit();
+        $stmt->close();
+        
+    } catch(Exception $e) {
+        $valid['success'] = false;
+        $valid['messages'] = $e->getMessage();
     }
     
     $connect->close();
+    echo json_encode($valid);
 }

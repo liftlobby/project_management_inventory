@@ -42,20 +42,27 @@ function setSecurityHeaders() {
         "style-src 'self' 'unsafe-inline' https://maxcdn.bootstrapcdn.com; " .
         "img-src 'self' data: blob: *; " .
         "font-src 'self' https://maxcdn.bootstrapcdn.com; " .
-        "connect-src 'self'; " .
+        "connect-src 'self' blob:; " .
+        "object-src 'self' blob:; " .
+        "media-src 'self' blob:; " .
+        "frame-src 'self'; " .
+        "worker-src 'self' blob:; " .
         "frame-ancestors 'self'; " .
         "form-action 'self'; " .
         "base-uri 'self';";
     header($cspHeader);
     
     // Permissions Policy
-    header("Permissions-Policy: ".
-        "geolocation=(), " .
-        "microphone=(), " .
+    header("Permissions-Policy: " .
+        "accelerometer=(), " .
         "camera=(), " .
+        "geolocation=(), " .
+        "gyroscope=(), " .
+        "magnetometer=(), " .
+        "microphone=(), " .
         "payment=(), " .
         "usb=()");
-        
+    
     // Remove PHP version
     header_remove('X-Powered-By');
 }

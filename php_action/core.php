@@ -42,7 +42,11 @@ $csrf_exempt_pages = [
     'fetchSelectedOrder.php',  // Adding this to exempt list
     'fetchOrder.php',  // Adding this to exempt list
     'printOrder.php',  // Adding this to exempt list
-    'removeOrder.php'  // Adding this to exempt list
+    'removeOrder.php',  // Adding this to exempt list
+    'getOrderReport.php',  // Adding this to exempt list
+    'fetchProductData.php',  // Adding this for order management
+    'fetchSelectedProduct.php',  // Adding this for order management
+    'getTotal.php'  // Adding this for order management
 ];
 
 // Pages that don't require MFA verification

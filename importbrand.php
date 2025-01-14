@@ -1,4 +1,7 @@
-<?php require_once 'includes/header.php'; ?>
+<?php 
+require_once 'php_action/core.php';
+require_once 'includes/header.php'; 
+?>
 
 <div class="row">
 	<div class="col-md-12">
@@ -10,27 +13,28 @@
 			<div class="panel-body">
 				
 				<form class="form-horizontal" id="submitImportForm" action="php_action/createBrandImport.php" method="POST" enctype="multipart/form-data">
-				<div id="add-product-messages"></div>
-				<div class="form-group">
-	        	<label for="brandfile" class="col-sm-3 control-label">Import Brand FIle: </label>
-	        	<label class="col-sm-1 control-label">: </label>
-				    <div class="col-sm-8">
-					    <!-- the avatar markup -->
+					<?php echo CSRFProtection::getTokenField(); ?>
+					<div id="add-product-messages"></div>
+
+					<div class="form-group">
+						<label for="brandfile" class="col-sm-3 control-label">Import Brand File: </label>
+						<label class="col-sm-1 control-label">: </label>
+						<div class="col-sm-8">
 							<div id="kv-avatar-errors-1" class="center-block" style="display:none;"></div>							
-					    <div class="kv-avatar center-block">					        
-					        <input type="file" class="form-control" id="brandfile" placeholder="Import Brand FIle" name="brandfile" class="file-loading" style="width:auto;"/>
-							
-					    </div>
-						<a href="assests/import/brand.xlsx" download>Sample file</a>
-				      
-				    </div>
-	        	</div> <!-- /form-group-->	
-				
-				  <div class="form-group">
-				    <div class="col-sm-offset-2 col-sm-10">
-				      <button type="submit" class="btn btn-success" id="importBrandBtn"> <i class="glyphicon glyphicon-ok-sign"></i> Import</button>
-				    </div>
-				  </div>
+							<div class="kv-avatar center-block">					        
+								<input type="file" class="form-control" id="brandfile" placeholder="Import Brand File" name="brandfile" class="file-loading" style="width:auto;"/>
+							</div>
+							<a href="assests/import/brand.xlsx" download>Download Sample File</a>
+						</div>
+					</div>
+
+					<div class="form-group">
+						<div class="col-sm-offset-2 col-sm-10">
+							<button type="submit" class="btn btn-success" id="importBrandBtn">
+								<i class="glyphicon glyphicon-ok-sign"></i> Import
+							</button>
+						</div>
+					</div>
 				</form>
 
 			</div>
@@ -40,5 +44,7 @@
 	<!-- /col-dm-12 -->
 </div>
 <!-- /row -->
+
 <script src="custom/js/import.js"></script>
+
 <?php require_once 'includes/footer.php'; ?>
