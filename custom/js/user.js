@@ -28,6 +28,11 @@ $(document).ready(function() {
             '- One special character (!@#$%^&*()-_=+{};:,<.>)</small>');
     });   
 
+    // Function to get CSRF token
+    function getCsrfToken() {
+        return $("input[name='csrf_token']").val();
+    }
+
     // submit form
     $("#submitUserForm").unbind('submit').bind('submit', function() {
         // form validation
@@ -56,234 +61,171 @@ $(document).ready(function() {
             $('#upassword').closest('.form-group').addClass('has-success');      
         }
 
-        if(isValid) {
-            // submit loading button
-            $("#createUserBtn").button('loading');
-
+        if(isValid === true) {
             var form = $(this);
-            var formData = new FormData(this);
-
             $.ajax({
-                url : form.attr('action'),
+                url: form.attr('action'),
                 type: form.attr('method'),
-                data: formData,
+                data: form.serialize(),
                 dataType: 'json',
-                cache: false,
-                contentType: false,
-                processData: false,
                 success: function(response) {
-                    // Always reset the button first
-                    $("#createUserBtn").button('reset');
-                    
+                    console.log(response);
                     if(response.success == true) {
-                        // reset form
+                        manageUserTable.ajax.reload(null, false);                  
                         $("#submitUserForm")[0].reset();
-                        // remove error styles
                         $(".text-danger").remove();
-                        $(".form-group").removeClass('has-error').removeClass('has-success');
-                        
-                        // success message
+                        $('.form-group').removeClass('has-error').removeClass('has-success');
                         $('#add-user-messages').html('<div class="alert alert-success">'+
                             '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
                             '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-                        '</div>');
+                            '</div>');
 
-                        // reload the manage member table
-                        manageUserTable.ajax.reload(null, true);
-
-                        // Remove password requirements
-                        $(".password-requirements").remove();
-                    } else {
-                        // error message
-                        $('#add-user-messages').html('<div class="alert alert-danger">'+
-                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                            '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
-                        '</div>');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    // Reset button state
-                    $("#createUserBtn").button('reset');
-                    
-                    // Show error message
-                    $('#add-user-messages').html('<div class="alert alert-danger">'+
-                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred. Please try again.'+
-                    '</div>');
-                }
-            }); // /ajax
-        } else {
-            return false;
-        }
-
-        return false;
-    }); // /submit form
-}); // /document ready
-
-function editUser(userid = null) {
-    if(userid) {
-        // remove hidden user id text
-        $('#userId').remove();
-
-        // remove the error 
-        $('.text-danger').remove();
-        // remove the form-error
-        $('.form-group').removeClass('has-error').removeClass('has-success');
-
-        // modal loading
-        $('.modal-loading').removeClass('div-hide');
-        // modal result
-        $('.edit-user-result').addClass('div-hide');
-        // modal footer
-        $('.modal-footer').addClass('div-hide');
-
-        $.ajax({
-            url: 'php_action/fetchSelectedUser.php',
-            type: 'post',
-            data: {userid : userid},
-            dataType: 'json',
-            success:function(response) {
-                // modal loading
-                $('.modal-loading').addClass('div-hide');
-                // modal result
-                $('.edit-user-result').removeClass('div-hide');
-                // modal footer
-                $('.modal-footer').removeClass('div-hide');
-
-                // setting the user name value 
-                $('#editUserName').val(response.username);
-                // setting the user email value      
-                $('#editUemail').val(response.email);
-                // user id 
-                $(".editUserFooter").after('<input type="hidden" name="userId" id="userId" value="'+response.user_id+'" />');
-
-                // update user form 
-                $('#editUserForm').unbind('submit').bind('submit', function() {
-
-                    // remove the error text
-                    $(".text-danger").remove();
-                    // remove the form error
-                    $('.form-group').removeClass('has-error').removeClass('has-success');
-
-                    var userName = $('#editUserName').val();
-                    var uemail = $('#editUemail').val();
-
-                    if(userName == "") {
-                        $("#editUserName").after('<p class="text-danger">User Name field is required</p>');
-                        $('#editUserName').closest('.form-group').addClass('has-error');
-                    } else {
-                        // remove error text field
-                        $("#editUserName").find('.text-danger').remove();
-                        // success out for form 
-                        $("#editUserName").closest('.form-group').addClass('has-success');   
-                    }
-
-                    if(uemail == "") {
-                        $("#editUemail").after('<p class="text-danger">Email field is required</p>');
-                        $('#editUemail').closest('.form-group').addClass('has-error');
-                    } else {
-                        // remove error text field
-                        $("#editUemail").find('.text-danger').remove();
-                        // success out for form 
-                        $("#editUemail").closest('.form-group').addClass('has-success');   
-                    }
-
-                    if(userName && uemail) {
-                        var form = $(this);
-
-                        // submit btn
-                        $('#editUserBtn').button('loading');
-
-                        $.ajax({
-                            url: form.attr('action'),
-                            type: form.attr('method'),
-                            data: form.serialize(),
-                            dataType: 'json',
-                            success:function(response) {
-
-                                if(response.success == true) {
-                                    console.log(response);
-                                    // submit btn
-                                    $('#editUserBtn').button('reset');
-
-                                    // remove the error text
-                                    $(".text-danger").remove();
-                                    // remove the form error
-                                    $('.form-group').removeClass('has-error').removeClass('has-success');
-
-                                    $('#edit-user-messages').html('<div class="alert alert-success">'+
-                                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                                        '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-                                    '</div>');
-                                   
-                                    $(".alert-success").delay(500).show(10, function() {
-                                        $(this).delay(3000).hide(10, function() {
-                                            $(this).remove();
-                                        });
-                                    }); // /.alert
-
-                                    manageUserTable.ajax.reload(null, true);
-
-                                } else {
-                                    console.log(response);
-                                    // submit btn
-                                    $('#editUserBtn').button('reset'); 
-                                }
-                            } // /success
-                        }); // /ajax
-                    } // /if
-
-                    return false;
-                }); // /update user form
-
-            } // /success
-        }); // /fetch selected user info
-
-    } else {
-        alert('error!! Refresh the page');
-    }
-} // /edit user function
-
-function removeUser(userid = null) {
-    if(userid) {
-        // remove user button clicked
-        $("#removeUserBtn").unbind('click').bind('click', function() {
-            // loading remove button
-            $("#removeUserBtn").button('loading');
-            $.ajax({
-                url: 'php_action/removeUser.php',
-                type: 'post',
-                data: {userid: userid},
-                dataType: 'json',
-                success:function(response) {
-                    // loading remove button
-                    $("#removeUserBtn").button('reset');
-                    if(response.success == true) {
-                        // remove user modal
-                        $("#removeUserModal").modal('hide');
-
-                        // update the user table
-                        manageUserTable.ajax.reload(null, false);
-
-                        // remove success messages
-                        $(".remove-messages").html('<div class="alert alert-success">'+
-                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-                        '</div>');
-                        
-                        // remove the mesages
                         $(".alert-success").delay(500).show(10, function() {
                             $(this).delay(3000).hide(10, function() {
                                 $(this).remove();
                             });
-                        }); // /.alert
-                    } else {
+                        });
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error:", error);
+                    $('#add-user-messages').html('<div class="alert alert-danger">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> An error occurred. Please try again.'+
+                        '</div>');
+                }
+            });
+        }
+        return false;
+    });
 
-                    } // /else
-                } // /response messages
-            }); // /ajax function to remove the user
-        }); // /remove user btn clicked
-    } else {
-        alert('error!! Refresh the page');
+    // edit user function
+    function editUser(userid = null) {
+        if(userid) {
+            // remove error messages
+            $(".text-danger").remove();
+            $(".alert").remove();
+            // remove from-group error
+            $(".form-group").removeClass('has-error').removeClass('has-success');
+
+            $.ajax({
+                url: 'php_action/fetchSelectedUser.php',
+                type: 'post',
+                data: {
+                    userid: userid,
+                    csrf_token: getCsrfToken()
+                },
+                dataType: 'json',
+                success: function(response) {
+                    console.log("User data:", response);
+                    if(response.success === true) {
+                        $("#editUserName").val(response.username);
+                        $("#editUemail").val(response.email);
+                        
+                        // Store user ID for update
+                        $(".editUserFooter").after('<input type="hidden" name="userId" id="userId" value="'+response.user_id+'" />');
+
+                        // show modal
+                        $("#editUserModal").modal('show');
+                    } else {
+                        $('#edit-user-messages').html('<div class="alert alert-danger">'+
+                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                            '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                            '</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    console.error("Error fetching user:", error);
+                    console.error("Response:", xhr.responseText);
+                    $('#edit-user-messages').html('<div class="alert alert-danger">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Failed to fetch user data'+
+                        '</div>');
+                }
+            });
+        }
     }
-} // /remove user function
+
+    // Bind edit user function to window
+    window.editUser = editUser;
+
+    // edit user form submit
+    $("#editUserForm").unbind('submit').bind('submit', function() {
+        var form = $(this);
+        
+        $.ajax({
+            url: form.attr('action'),
+            type: 'POST',
+            data: form.serialize(),
+            dataType: 'json',
+            success: function(response) {
+                if(response.success === true) {
+                    manageUserTable.ajax.reload(null, false);
+                    $("#editUserModal").modal('hide');
+                    $('#edit-user-messages').html('<div class="alert alert-success">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                        '</div>');
+                } else {
+                    $('#edit-user-messages').html('<div class="alert alert-danger">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                        '</div>');
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error("Error updating user:", error);
+                $('#edit-user-messages').html('<div class="alert alert-danger">'+
+                    '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                    '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Failed to update user'+
+                    '</div>');
+            }
+        });
+        return false;
+    });
+
+    // remove user function
+    function removeUser(userid = null) {
+        if(userid) {
+            // remove user button clicked
+            $("#removeUserBtn").unbind('click').bind('click', function() {
+                // loading remove button
+                $("#removeUserBtn").button('loading');
+                $.ajax({
+                    url: 'php_action/removeUser.php',
+                    type: 'post',
+                    data: {userid: userid},
+                    dataType: 'json',
+                    success:function(response) {
+                        // loading remove button
+                        $("#removeUserBtn").button('reset');
+                        if(response.success == true) {
+                            // remove user modal
+                            $("#removeUserModal").modal('hide');
+
+                            // update the user table
+                            manageUserTable.ajax.reload(null, false);
+
+                            // remove success messages
+                            $(".remove-messages").html('<div class="alert alert-success">'+
+                                '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                                '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                            '</div>');
+                            
+                            // remove the mesages
+                            $(".alert-success").delay(500).show(10, function() {
+                                $(this).delay(3000).hide(10, function() {
+                                    $(this).remove();
+                                });
+                            }); // /.alert
+                        } else {
+
+                        } // /else
+                    } // /response messages
+                }); // /ajax function to remove the user
+            }); // /remove user btn clicked
+        } else {
+            alert('error!! Refresh the page');
+        }
+    } // /remove user function
+}); // /document ready

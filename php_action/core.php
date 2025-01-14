@@ -1,9 +1,11 @@
 <?php 
-// Configure session before starting it
-require_once 'session_config.php';
+// Start session first
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
-// Start session
-session_start();
+// Configure session
+require_once 'session_config.php';
 
 // Define security headers constant
 define('SECURITY_HEADERS_INCLUDED', true);

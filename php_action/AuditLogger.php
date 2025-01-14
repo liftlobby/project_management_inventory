@@ -19,83 +19,74 @@ class AuditLogger {
     /**
      * Log user activity
      * 
-     * @param string $action The action being performed (e.g., 'login', 'logout', 'create', 'update', 'delete')
-     * @param string $entityType The type of entity being acted upon (e.g., 'user', 'product', 'order')
-     * @param string|null $entityId The ID of the entity (if applicable)
+     * @param string $action The action being performed (e.g., 'create', 'update', 'delete')
+     * @param string $tableName The table being modified (e.g., 'users', 'products')
+     * @param int $recordId The ID of the record being modified
      * @param array|null $oldValues Previous values before change (for updates)
      * @param array|null $newValues New values after change (for updates/creates)
      * @return bool Whether the logging was successful
      */
-    public function log($action, $entityType = null, $entityId = null, $oldValues = null, $newValues = null) {
+    public function log($action, $tableName, $recordId, $oldValues = null, $newValues = null) {
         try {
-            // Get current user info
-            $userId = isset($_SESSION['userId']) ? $_SESSION['userId'] : null;
-            $username = isset($_SESSION['username']) ? $_SESSION['username'] : null;
+            // Get current user info from session
+            if (!isset($_SESSION['userId']) || !isset($_SESSION['username'])) {
+                error_log("No user session found for audit logging");
+                return false;
+            }
             
-            // Get request details
-            $ipAddress = $this->getClientIP();
-            $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+            $userId = $_SESSION['userId'];
+            $username = $_SESSION['username'];
             
-            // Prepare old and new values for storage
+            // Convert arrays to JSON for storage
             $oldValuesJson = $oldValues ? json_encode($oldValues) : null;
             $newValuesJson = $newValues ? json_encode($newValues) : null;
             
+            // Get IP address
+            $ipAddress = $this->getClientIP();
+            
             // Prepare and execute query
-            $sql = "INSERT INTO audit_logs (user_id, username, action, entity_type, entity_id, 
-                    old_values, new_values, ip_address, user_agent) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO audit_logs (user_id, username, action, table_name, record_id, old_values, new_values, ip_address) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             
             $stmt = $this->conn->prepare($sql);
-            $stmt->bind_param("issssssss", 
+            if (!$stmt) {
+                error_log("Failed to prepare audit log statement: " . $this->conn->error);
+                return false;
+            }
+            
+            $stmt->bind_param("isssisss", 
                 $userId,
                 $username,
                 $action,
-                $entityType,
-                $entityId,
+                $tableName,
+                $recordId,
                 $oldValuesJson,
                 $newValuesJson,
-                $ipAddress,
-                $userAgent
+                $ipAddress
             );
             
             $result = $stmt->execute();
             if (!$result) {
-                error_log("Failed to log audit entry: " . $stmt->error);
+                error_log("Failed to execute audit log statement: " . $stmt->error);
                 return false;
             }
             
             return true;
+            
         } catch (Exception $e) {
             error_log("Error in audit logging: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return false;
         }
     }
     
     /**
-     * Get client's real IP address
-     */
-    private function getClientIP() {
-        $ipAddress = '';
-        
-        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
-            $ipAddress = $_SERVER['HTTP_CLIENT_IP'];
-        } else if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
-            $ipAddress = $_SERVER['HTTP_X_FORWARDED_FOR'];
-        } else if (isset($_SERVER['HTTP_X_FORWARDED'])) {
-            $ipAddress = $_SERVER['HTTP_X_FORWARDED'];
-        } else if (isset($_SERVER['HTTP_FORWARDED_FOR'])) {
-            $ipAddress = $_SERVER['HTTP_FORWARDED_FOR'];
-        } else if (isset($_SERVER['HTTP_FORWARDED'])) {
-            $ipAddress = $_SERVER['HTTP_FORWARDED'];
-        } else if (isset($_SERVER['REMOTE_ADDR'])) {
-            $ipAddress = $_SERVER['REMOTE_ADDR'];
-        }
-        
-        return $ipAddress;
-    }
-    
-    /**
      * Get audit logs with filtering and pagination
+     * 
+     * @param array $filters Associative array of filters (user_id, action, table_name, date_from, date_to)
+     * @param int $page Current page number
+     * @param int $perPage Number of items per page
+     * @return array Array of audit log entries
      */
     public function getAuditLogs($filters = [], $page = 1, $perPage = 20) {
         try {
@@ -109,24 +100,28 @@ class AuditLogger {
                 $params[] = $filters['user_id'];
                 $types .= "i";
             }
+            
             if (!empty($filters['action'])) {
                 $conditions[] = "action = ?";
                 $params[] = $filters['action'];
                 $types .= "s";
             }
-            if (!empty($filters['entity_type'])) {
-                $conditions[] = "entity_type = ?";
-                $params[] = $filters['entity_type'];
+            
+            if (!empty($filters['table_name'])) {
+                $conditions[] = "table_name = ?";
+                $params[] = $filters['table_name'];
                 $types .= "s";
             }
+            
             if (!empty($filters['date_from'])) {
                 $conditions[] = "created_at >= ?";
-                $params[] = $filters['date_from'];
+                $params[] = $filters['date_from'] . ' 00:00:00';
                 $types .= "s";
             }
+            
             if (!empty($filters['date_to'])) {
                 $conditions[] = "created_at <= ?";
-                $params[] = $filters['date_to'];
+                $params[] = $filters['date_to'] . ' 23:59:59';
                 $types .= "s";
             }
             
@@ -148,11 +143,20 @@ class AuditLogger {
             
             // Execute query
             $stmt = $this->conn->prepare($sql);
+            if (!$stmt) {
+                error_log("Failed to prepare getAuditLogs statement: " . $this->conn->error);
+                return [];
+            }
+            
             if (!empty($params)) {
                 $stmt->bind_param($types, ...$params);
             }
             
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                error_log("Failed to execute getAuditLogs statement: " . $stmt->error);
+                return [];
+            }
+            
             $result = $stmt->get_result();
             
             $logs = [];
@@ -168,14 +172,19 @@ class AuditLogger {
             }
             
             return $logs;
+            
         } catch (Exception $e) {
             error_log("Error retrieving audit logs: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [];
         }
     }
     
     /**
      * Get total count of audit logs for pagination
+     * 
+     * @param array $filters Associative array of filters
+     * @return int Total number of matching logs
      */
     public function getTotalLogsCount($filters = []) {
         try {
@@ -189,7 +198,30 @@ class AuditLogger {
                 $params[] = $filters['user_id'];
                 $types .= "i";
             }
-            // ... add other filters similarly
+            
+            if (!empty($filters['action'])) {
+                $conditions[] = "action = ?";
+                $params[] = $filters['action'];
+                $types .= "s";
+            }
+            
+            if (!empty($filters['table_name'])) {
+                $conditions[] = "table_name = ?";
+                $params[] = $filters['table_name'];
+                $types .= "s";
+            }
+            
+            if (!empty($filters['date_from'])) {
+                $conditions[] = "created_at >= ?";
+                $params[] = $filters['date_from'] . ' 00:00:00';
+                $types .= "s";
+            }
+            
+            if (!empty($filters['date_to'])) {
+                $conditions[] = "created_at <= ?";
+                $params[] = $filters['date_to'] . ' 23:59:59';
+                $types .= "s";
+            }
             
             $sql = "SELECT COUNT(*) as total FROM audit_logs";
             if (!empty($conditions)) {
@@ -197,18 +229,43 @@ class AuditLogger {
             }
             
             $stmt = $this->conn->prepare($sql);
+            if (!$stmt) {
+                error_log("Failed to prepare getTotalLogsCount statement: " . $this->conn->error);
+                return 0;
+            }
+            
             if (!empty($params)) {
                 $stmt->bind_param($types, ...$params);
             }
             
-            $stmt->execute();
+            if (!$stmt->execute()) {
+                error_log("Failed to execute getTotalLogsCount statement: " . $stmt->error);
+                return 0;
+            }
+            
             $result = $stmt->get_result();
             $row = $result->fetch_assoc();
             
             return (int)$row['total'];
+            
         } catch (Exception $e) {
             error_log("Error counting audit logs: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return 0;
         }
+    }
+    
+    /**
+     * Get client's real IP address
+     */
+    private function getClientIP() {
+        if (isset($_SERVER['HTTP_CLIENT_IP'])) {
+            return $_SERVER['HTTP_CLIENT_IP'];
+        } else if (isset($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+            return $_SERVER['HTTP_X_FORWARDED_FOR'];
+        } else if (isset($_SERVER['REMOTE_ADDR'])) {
+            return $_SERVER['REMOTE_ADDR'];
+        }
+        return 'Unknown';
     }
 }

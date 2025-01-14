@@ -143,11 +143,23 @@
 
 			 　　 　
 
-			        <div class="modal-footer editUserFooter">
-				        <button type="button" class="btn btn-default" data-dismiss="modal"> <i class="glyphicon glyphicon-remove-sign"></i> Close</button>
-				        
-				        <button type="submit" class="btn btn-success" id="editProductBtn" data-loading-text="Loading..."> <i class="glyphicon glyphicon-ok-sign"></i> Save Changes</button>
-				      </div> <!-- /modal-footer -->				     
+			        <div class="form-group">
+			        		<label for="editUemail" class="col-sm-3 control-label">Email: </label>
+			        	
+						    <div class="col-sm-8">
+						      <input type="email" class="form-control" id="editUemail" placeholder="Email" name="editUemail" autocomplete="off">
+						    </div>
+			        </div> <!-- /form-group-->	 
+			        	         	        
+			        <input type="hidden" name="csrf_token" value="<?php echo CSRFProtection::generateToken(); ?>">
+			        	         	        
+	      </div> <!-- /modal-body -->
+	      
+	      <div class="modal-footer editUserFooter">
+	        <button type="button" class="btn btn-default" data-dismiss="modal"> <i class="glyphicon glyphicon-remove-sign"></i> Close</button>
+	        
+	        <button type="submit" class="btn btn-success" id="editProductBtn" data-loading-text="Loading..."> <i class="glyphicon glyphicon-ok-sign"></i> Save Changes</button>
+	      </div> <!-- /modal-footer -->				     
 			        </form> <!-- /.form -->				     	
 				    </div>    
 				    <!-- /product info -->

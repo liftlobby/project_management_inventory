@@ -1,11 +1,13 @@
 <?php
 require_once 'php_action/db_connect.php';
 require_once 'php_action/security_utils.php';
+require_once 'php_action/AuditLogger.php';
 
 session_start();
 
-// Initialize SecurityUtils
+// Initialize SecurityUtils and AuditLogger
 SecurityUtils::init();
+$auditLogger = AuditLogger::getInstance();
 
 // Redirect if no pending MFA verification
 if (!isset($_SESSION['mfa_pending']) || !isset($_SESSION['temp_user_id'])) {
@@ -20,12 +22,27 @@ if ($_POST) {
     
     if (empty($mfaCode)) {
         $errors[] = "Please enter the verification code";
+        $auditLogger->log('login_failed', 'user', $_SESSION['temp_user_id'], null, ['reason' => 'Empty MFA code']);
     } else {
         try {
             if (SecurityUtils::verifyMFACode($_SESSION['temp_user_id'], $mfaCode)) {
                 // MFA successful - complete login
                 $_SESSION['userId'] = $_SESSION['temp_user_id'];
                 $_SESSION['username'] = $_SESSION['username'];
+                
+                // Log successful login
+                $auditLogger->log(
+                    'login_success',
+                    'user',
+                    $_SESSION['userId'],
+                    null,
+                    [
+                        'username' => $_SESSION['username'],
+                        'ip_address' => $_SERVER['REMOTE_ADDR'],
+                        'user_agent' => $_SERVER['HTTP_USER_AGENT']
+                    ]
+                );
+                
                 unset($_SESSION['mfa_pending']);
                 unset($_SESSION['temp_user_id']);
                 
@@ -33,10 +50,15 @@ if ($_POST) {
                 exit();
             } else {
                 $errors[] = "Invalid or expired verification code";
+                $auditLogger->log('login_failed', 'user', $_SESSION['temp_user_id'], null, ['reason' => 'Invalid MFA code']);
             }
         } catch (Exception $e) {
             error_log("MFA verification error: " . $e->getMessage());
             $errors[] = "An error occurred during verification. Please try again.";
+            $auditLogger->log('login_failed', 'user', $_SESSION['temp_user_id'], null, [
+                'reason' => 'MFA verification error',
+                'error' => $e->getMessage()
+            ]);
         }
     }
 }
