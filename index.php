@@ -9,6 +9,12 @@ require_once 'php_action/AuditLogger.php';
 session_start();
 
 $errors = array();
+
+// Check for session timeout
+if (isset($_GET['timeout']) && $_GET['timeout'] == 1) {
+    $errors[] = "Your session has expired. Please log in again.";
+}
+
 if($_POST) {
     // Initialize audit logger
     $auditLogger = AuditLogger::getInstance();

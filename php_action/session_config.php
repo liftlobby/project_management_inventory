@@ -4,7 +4,7 @@ if (session_status() === PHP_SESSION_NONE) {
     $secure = isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on';
     $httponly = true;
     $samesite = 'Lax';
-    $path = '/php-inventory-management-system/';  // Updated path to match application root
+    $path = '/php-inventory-management-system/';
     $domain = '';
 
     // PHP >= 7.3.0

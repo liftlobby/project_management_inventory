@@ -1,8 +1,9 @@
 <?php 
-// Start session first
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+// Include session manager first
+require_once 'session_manager.php';
+
+// Start session and validate
+SessionManager::requireLogin();
 
 // Configure session
 require_once 'session_config.php';
@@ -20,12 +21,6 @@ require_once 'db_connect.php';
 
 // Base URL for redirects
 $base_url = '/php-inventory-management-system/';
-
-// Check if user is logged in
-if(!isset($_SESSION['userId'])) {
-    header('location: ' . $base_url . 'index.php');	
-    exit();
-}
 
 // Get the current page
 $current_page = basename($_SERVER['PHP_SELF']);
