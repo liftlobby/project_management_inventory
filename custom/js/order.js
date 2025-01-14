@@ -789,4 +789,189 @@ $(document).ready(function() {
             });
         }
     };
+
+    // Add Order form submission
+    $("#submitOrderForm").unbind('submit').bind('submit', function(e) {
+        e.preventDefault();
+        var form = $(this);
+
+        // Clear previous messages
+        $('#add-order-messages').html('');
+        
+        // Remove existing error classes
+        $('.form-group').removeClass('has-error').removeClass('has-success');
+        $('.text-danger').remove();
+        
+        // Get form values
+        var orderDate = $("#orderDate").val();
+        var clientName = $("#clientName").val();
+        var clientContact = $("#clientContact").val();
+        var restockReason = $("#restock_reason").val();
+
+        // Validate form fields
+        var isValid = true;
+        
+        if(!orderDate) {
+            $("#orderDate").after('<p class="text-danger">Order Date is required</p>');
+            $("#orderDate").closest('.form-group').addClass('has-error');
+            isValid = false;
+        }
+        
+        if(!clientName) {
+            $("#clientName").after('<p class="text-danger">Staff Name is required</p>');
+            $("#clientName").closest('.form-group').addClass('has-error');
+            isValid = false;
+        }
+        
+        if(!clientContact) {
+            $("#clientContact").after('<p class="text-danger">Staff Contact is required</p>');
+            $("#clientContact").closest('.form-group').addClass('has-error');
+            isValid = false;
+        }
+
+        if(!restockReason) {
+            $("#restock_reason").after('<p class="text-danger">Restock Reason is required</p>');
+            $("#restock_reason").closest('.form-group').addClass('has-error');
+            isValid = false;
+        }
+
+        // Validate product selections
+        var productCount = 0;
+        var hasEmptyProduct = false;
+        var hasInvalidQuantity = false;
+
+        $('select[name="productName[]"]').each(function() {
+            if($(this).val()) {
+                productCount++;
+                var row = $(this).closest('tr').attr('id').replace('row', '');
+                var quantity = $("#quantity" + row).val();
+                
+                if(!quantity || quantity <= 0) {
+                    $("#quantity" + row).after('<p class="text-danger">Valid quantity is required</p>');
+                    $("#quantity" + row).closest('.form-group').addClass('has-error');
+                    hasInvalidQuantity = true;
+                }
+            } else if($(this).closest('tr').find('input[name="quantity[]"]').val()) {
+                hasEmptyProduct = true;
+            }
+        });
+
+        if(productCount === 0) {
+            $('#add-order-messages').html('<div class="alert alert-danger">'+
+                '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Please select at least one product'+
+            '</div>');
+            isValid = false;
+        }
+
+        if(hasEmptyProduct) {
+            $('#add-order-messages').html('<div class="alert alert-danger">'+
+                '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Please select products for all rows with quantities'+
+            '</div>');
+            isValid = false;
+        }
+
+        if(hasInvalidQuantity) {
+            isValid = false;
+        }
+
+        if(isValid) {
+            // Get CSRF token
+            var csrf_token = $('input[name="csrf_token"]').val();
+            
+            // Show loading state
+            $("#createOrderBtn").button('loading');
+            
+            // Submit form via AJAX
+            $.ajax({
+                url: form.attr('action'),
+                type: form.attr('method'),
+                data: form.serialize() + "&csrf_token=" + csrf_token,
+                dataType: 'json',
+                success: function(response) {
+                    console.log("Server response:", response);
+                    $("#createOrderBtn").button('reset');
+                    
+                    if(response.success) {
+                        // Show success message
+                        $('#add-order-messages').html('<div class="alert alert-success">'+
+                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                        '</div>');
+
+                        // Reset form
+                        $("#submitOrderForm")[0].reset();
+                        $(".text-danger").remove();
+                        $('.form-group').removeClass('has-error').removeClass('has-success');
+                        
+                        // Reset product table
+                        $("#productTable tbody").html('<tr id="row1" class="0">'+
+                            '<td style="margin-left:20px;">'+
+                                '<div class="form-group">'+
+                                '<select class="form-control" name="productName[]" id="productName1" onchange="getProductData(1)">'+
+                                    '<option value="">~~SELECT~~</option>'+
+                                    // Products will be populated via AJAX
+                                '</select>'+
+                                '</div>'+
+                            '</td>'+
+                            '<td style="padding-left:20px;">'+
+                                '<input type="text" name="rate[]" id="rate1" autocomplete="off" disabled="true" class="form-control" />'+
+                                '<input type="hidden" name="rateValue[]" id="rateValue1" autocomplete="off" class="form-control" />'+
+                            '</td>'+
+                            '<td style="padding-left:20px;">'+
+                                '<div class="form-group">'+
+                                '<input type="number" name="quantity[]" id="quantity1" onkeyup="getTotal(1)" autocomplete="off" class="form-control" min="1" />'+
+                                '</div>'+
+                            '</td>'+
+                            '<td style="padding-left:20px;">'+
+                                '<input type="text" name="total[]" id="total1" autocomplete="off" class="form-control" disabled="true" />'+
+                                '<input type="hidden" name="totalValue[]" id="totalValue1" autocomplete="off" class="form-control" />'+
+                            '</td>'+
+                            '<td>'+
+                                '<button class="btn btn-danger removeProductRowBtn" type="button" onclick="removeProductRow(1)"><i class="glyphicon glyphicon-trash"></i></button>'+
+                            '</td>'+
+                        '</tr>');
+
+                        // Populate products in the first row
+                        $.ajax({
+                            url: 'php_action/fetchProductData.php',
+                            type: 'post',
+                            dataType: 'json',
+                            success: function(data) {
+                                $.each(data, function(index, value) {
+                                    $("#productName1").append('<option value="'+value[0]+'">'+value[1]+'</option>');
+                                });
+                            }
+                        });
+                        
+                        // Close modal
+                        $("#addOrderModal").modal('hide');
+                        
+                        // Reload table
+                        manageOrderTable.ajax.reload(null, false);
+                        
+                    } else {
+                        // Show error message
+                        $('#add-order-messages').html('<div class="alert alert-danger">'+
+                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                            '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                        '</div>');
+                    }
+                },
+                error: function(xhr, status, error) {
+                    $("#createOrderBtn").button('reset');
+                    console.error("Error details:", {status: status, error: error, response: xhr.responseText});
+                    
+                    // Show error message
+                    $('#add-order-messages').html('<div class="alert alert-danger">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Failed to create order. Please try again.'+
+                    '</div>');
+                }
+            });
+        }
+        
+        return false;
+    });
 });

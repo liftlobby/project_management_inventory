@@ -1,148 +1,141 @@
 <?php 
 require_once 'core.php';
 
-// Function to handle errors and return JSON response
-function handleError($message, $error = null) {
-    if ($error) {
-        error_log("Error in getOrderReport.php: " . print_r($error, true));
-    }
-    header('Content-Type: application/json');
-    echo json_encode(['success' => false, 'messages' => $message]);
-    exit();
-}
-
 if($_POST) {
+    header('Content-Type: text/html');
+    
     try {
-        // Validate input dates
         if(!isset($_POST['startDate']) || !isset($_POST['endDate'])) {
-            handleError('Start date and end date are required');
+            echo '<div class="alert alert-danger">Start date and end date are required</div>';
+            exit();
         }
 
         $startDate = $_POST['startDate'];
         $endDate = $_POST['endDate'];
 
-        // Try different date formats
-        $date_formats = ['m/d/Y', 'Y-m-d', 'd/m/Y'];
-        $start_date = null;
-        $end_date = null;
-
-        foreach($date_formats as $format) {
-            $temp_date = DateTime::createFromFormat($format, $startDate);
-            if($temp_date !== false) {
-                $start_date = $temp_date->format('Y-m-d');
-                break;
-            }
-        }
-
-        foreach($date_formats as $format) {
-            $temp_date = DateTime::createFromFormat($format, $endDate);
-            if($temp_date !== false) {
-                $end_date = $temp_date->format('Y-m-d');
-                break;
-            }
-        }
+        $start_date = date('Y-m-d', strtotime($startDate));
+        $end_date = date('Y-m-d', strtotime($endDate));
 
         if(!$start_date || !$end_date) {
-            handleError('Invalid date format. Please use YYYY-MM-DD format.');
+            echo '<div class="alert alert-danger">Invalid date format</div>';
+            exit();
         }
 
-        error_log("Generating report from $start_date to $end_date");
-
-        $sql = "SELECT o.order_id, o.order_date, o.client_name, o.client_contact, o.restock_reason,
-                COUNT(oi.order_item_id) as total_items,
-                SUM(oi.total) as order_total,
-                GROUP_CONCAT(CONCAT(p.product_name, ' (', oi.quantity, ')') SEPARATOR ', ') as items
-                FROM orders o
-                LEFT JOIN order_item oi ON o.order_id = oi.order_id
-                LEFT JOIN product p ON oi.product_id = p.product_id
-                WHERE o.order_date >= ? AND o.order_date <= ? AND o.order_status = 1
-                GROUP BY o.order_id
-                ORDER BY o.order_date DESC";
+        $sql = "SELECT 
+                o.order_id, o.order_date, o.client_name, o.client_contact, o.restock_reason,
+                p.product_name, oi.quantity,
+                u.username
+            FROM orders o
+            INNER JOIN order_item oi ON o.order_id = oi.order_id
+            INNER JOIN product p ON p.product_id = oi.product_id 
+            INNER JOIN users u ON o.user_id = u.user_id
+            WHERE o.order_date BETWEEN ? AND ?
+            ORDER BY o.order_date DESC, o.order_id DESC";
 
         $stmt = $connect->prepare($sql);
-        if (!$stmt) {
-            handleError('Database prepare error', $connect->error);
+        
+        if(!$stmt) {
+            echo '<div class="alert alert-danger">'.$connect->error.'</div>';
+            exit();
         }
 
         $stmt->bind_param("ss", $start_date, $end_date);
-        if (!$stmt->execute()) {
-            handleError('Error executing query', $stmt->error);
+        
+        if(!$stmt->execute()) {
+            echo '<div class="alert alert-danger">'.$stmt->error.'</div>';
+            exit();
         }
 
         $result = $stmt->get_result();
-        error_log("Found " . $result->num_rows . " orders");
-
-        $total_orders = 0;
-        $grand_total = 0;
-
-        $table = '
+        ?>
         <style>
-            .report-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            .report-table th, .report-table td { padding: 8px; text-align: left; border: 1px solid #ddd; }
-            .report-table th { background-color: #f5f5f5; font-weight: bold; }
-            .report-header { text-align: center; margin-bottom: 20px; }
-            .report-header h2 { margin-bottom: 5px; }
-            .report-header p { color: #666; }
-            .total-row { font-weight: bold; background-color: #f9f9f9; }
-            .currency { text-align: right; }
-            .items-column { max-width: 300px; word-wrap: break-word; }
+            .report-table {
+                border: 2px solid #ddd !important;
+                margin-bottom: 20px;
+            }
+            .report-table th,
+            .report-table td {
+                border: 1px solid #ddd !important;
+                padding: 12px !important;
+            }
+            .report-table th {
+                background-color: #f5f5f5 !important;
+                border-bottom: 2px solid #ddd !important;
+            }
+            @media print {
+                .report-table {
+                    border: 2px solid #000 !important;
+                }
+                .report-table th,
+                .report-table td {
+                    border: 1px solid #000 !important;
+                }
+                .report-table th {
+                    background-color: #f5f5f5 !important;
+                    -webkit-print-color-adjust: exact;
+                }
+            }
         </style>
-        <div class="report-header">
-            <h2>Order Report</h2>
-            <p>From: '.htmlspecialchars($startDate).' To: '.htmlspecialchars($endDate).'</p>
+        
+        <div class="panel panel-default">
+            <div class="panel-heading">
+                <h3 class="panel-title">Order Report</h3>
+                <p class="text-muted">Period: <?php echo date('F j, Y', strtotime($startDate)); ?> to <?php echo date('F j, Y', strtotime($endDate)); ?></p>
+            </div>
+            <div class="panel-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-striped report-table">
+                        <thead>
+                            <tr>
+                                <th>Order Date</th>
+                                <th>Client Name</th>
+                                <th>Contact</th>
+                                <th>Product</th>
+                                <th>Quantity</th>
+                                <th>Reason</th>
+                                <th>Created By</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php
+                            if($result->num_rows > 0) {
+                                while($row = $result->fetch_assoc()) {
+                                    ?>
+                                    <tr>
+                                        <td><?php echo date('F j, Y', strtotime($row['order_date'])); ?></td>
+                                        <td><?php echo htmlspecialchars($row['client_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($row['client_contact']); ?></td>
+                                        <td><?php echo htmlspecialchars($row['product_name']); ?></td>
+                                        <td><?php echo htmlspecialchars($row['quantity']); ?></td>
+                                        <td><?php echo htmlspecialchars($row['restock_reason']); ?></td>
+                                        <td><?php echo htmlspecialchars($row['username']); ?></td>
+                                    </tr>
+                                    <?php
+                                }
+                            } else {
+                                ?>
+                                <tr>
+                                    <td colspan="7" class="text-center">No orders found for the selected period</td>
+                                </tr>
+                                <?php
+                            }
+                            ?>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="text-muted">
+                    <p>Report generated on: <?php echo date('F j, Y g:i A'); ?></p>
+                </div>
+            </div>
         </div>
-        <table class="report-table">
-            <thead>
-                <tr>
-                    <th>Order Date</th>
-                    <th>Staff Name</th>
-                    <th>Contact</th>
-                    <th>Restock Reason</th>
-                    <th>Items</th>
-                    <th>Total Amount</th>
-                </tr>
-            </thead>
-            <tbody>';
-
-        while($row = $result->fetch_assoc()) {
-            $total_orders++;
-            $grand_total += $row['order_total'];
-            
-            $table .= '<tr>
-                <td>'.date('F j, Y', strtotime($row['order_date'])).'</td>
-                <td>'.htmlspecialchars($row['client_name']).'</td>
-                <td>'.htmlspecialchars($row['client_contact']).'</td>
-                <td>'.htmlspecialchars($row['restock_reason']).'</td>
-                <td class="items-column">'.htmlspecialchars($row['items']).'</td>
-                <td class="currency">$'.number_format($row['order_total'], 2).'</td>
-            </tr>';
-        }
-
-        $table .= '
-            </tbody>
-            <tfoot>
-                <tr class="total-row">
-                    <td colspan="4">Totals</td>
-                    <td>'.$total_orders.' Orders</td>
-                    <td class="currency">$'.number_format($grand_total, 2).'</td>
-                </tr>
-            </tfoot>
-        </table>';
-
+        <?php
+        
         $stmt->close();
         $connect->close();
 
-        // Return success response
-        header('Content-Type: application/json');
-        echo json_encode([
-            'success' => true,
-            'messages' => 'Report generated successfully',
-            'html' => $table
-        ]);
-
-    } catch (Exception $e) {
-        handleError('Server error: ' . $e->getMessage());
+    } catch(Exception $e) {
+        echo '<div class="alert alert-danger">Error: ' . htmlspecialchars($e->getMessage()) . '</div>';
     }
 } else {
-    handleError('Invalid request method');
+    echo '<div class="alert alert-danger">Invalid request method</div>';
 }
