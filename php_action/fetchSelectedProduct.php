@@ -3,11 +3,19 @@ require_once 'core.php';
 require_once 'security_utils.php';
 
 // Return error response function
-function sendErrorResponse($message) {
-    die(json_encode(array(
+function sendErrorResponse($message, $details = null) {
+    $response = array(
         'success' => false,
         'messages' => $message
-    )));
+    );
+    
+    // Only include debug details if we're in development
+    if ($details && isset($_SERVER['SERVER_NAME']) && $_SERVER['SERVER_NAME'] === 'localhost') {
+        $response['debug'] = $details;
+    }
+    
+    error_log("Product error: " . $message . ($details ? " Details: " . json_encode($details) : ""));
+    die(json_encode($response));
 }
 
 // Check if it's a POST request
@@ -22,14 +30,17 @@ if(!isset($_POST['productId'])) {
 
 $productId = $_POST['productId'];
 
+// Debug log
+error_log("Fetching product ID: " . $productId);
+
 // Prepare and execute query
 $sql = "SELECT p.product_id, p.product_name, p.product_image, p.brand_id, 
         p.categories_id, p.quantity, p.rate, p.active, p.status,
         b.brand_name, c.categories_name
         FROM product p
-        JOIN brands b ON p.brand_id = b.brand_id
-        JOIN categories c ON p.categories_id = c.categories_id
-        WHERE p.product_id = ? AND p.status = 1";
+        LEFT JOIN brands b ON p.brand_id = b.brand_id
+        LEFT JOIN categories c ON p.categories_id = c.categories_id
+        WHERE p.product_id = ? AND p.status = 1 AND p.active = 1";
 
 try {
     $stmt = SecurityUtils::prepareAndExecute($sql, "i", [$productId]);
@@ -49,17 +60,28 @@ try {
         } else {
             $data['product_image'] = 'assests/images/photo_default.png';
         }
+
+        // Debug log
+        error_log("Product found: " . json_encode($data));
     } else {
-        sendErrorResponse("Product not found or inactive");
+        // Check why the product wasn't found
+        $debugSql = "SELECT p.product_id, p.product_name, p.active, p.status, p.quantity 
+                     FROM product p 
+                     WHERE p.product_id = ?";
+        $debugStmt = SecurityUtils::prepareAndExecute($debugSql, "i", [$productId]);
+        $debugResult = $debugStmt->get_result();
+        $debugData = $debugResult->fetch_assoc();
+        
+        $errorDetails = array(
+            'product_exists' => ($debugResult->num_rows > 0),
+            'product_data' => $debugData
+        );
+        
+        sendErrorResponse("Product not found or inactive", $errorDetails);
     }
 } catch (Exception $e) {
     error_log("Error in fetchSelectedProduct.php: " . $e->getMessage());
     sendErrorResponse("Failed to fetch product details. Please try again.");
-}
-
-// Close database connection
-if (isset($connect)) {
-    $connect->close();
 }
 
 // Return response

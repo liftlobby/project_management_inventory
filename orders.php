@@ -109,7 +109,7 @@ require_once 'includes/header.php';
               </tr>
             </thead>
             <tbody>
-              <tr id="row1" data-id="1">
+              <tr id="row1" data-row="1">
                 <td>
                   <select class="form-control" name="productName[]" id="productName1" required>
                     <option value="">~~SELECT~~</option>
@@ -125,7 +125,7 @@ require_once 'includes/header.php';
                   <input type="text" name="total[]" id="total1" class="form-control" readonly />
                 </td>
                 <td>
-                  <button type="button" class="btn btn-danger removeProductRowBtn" data-id="1"><i class="glyphicon glyphicon-trash"></i></button>
+                  <button type="button" class="btn btn-danger removeProductRowBtn" data-row="1"><i class="glyphicon glyphicon-trash"></i></button>
                 </td>
               </tr>
             </tbody>
