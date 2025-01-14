@@ -106,23 +106,19 @@ $current_page = basename($_SERVER['PHP_SELF']);
           <a href="importbrand.php"> <i class="glyphicon glyphicon-check"></i> Import Brand </a>
         </li>
 		<?php } ?>   
-        <li class="dropdown" id="navSetting">
-          <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"> <i class="glyphicon glyphicon-user"></i> <span class="caret"></span></a>
-          <ul class="dropdown-menu">    
-			<?php if(isset($_SESSION['userId']) && $_SESSION['userId']==1) { ?>
-            <li id="topNavSetting" class="<?php echo ($current_page == 'setting.php' ? 'active' : ''); ?>">
-              <a href="setting.php"> <i class="glyphicon glyphicon-wrench"></i> Setting</a>
-            </li>
-            <li id="topNavUser" class="<?php echo ($current_page == 'user.php' ? 'active' : ''); ?>">
-              <a href="user.php"> <i class="glyphicon glyphicon-wrench"></i> Add User</a>
-            </li>
-<?php } ?>              
-            <li id="topNavLogout">
-              <a href="logout.php"> <i class="glyphicon glyphicon-log-out"></i> Logout</a>
-            </li>            
-          </ul>
-        </li>        
-           
+        <ul class="nav navbar-nav navbar-right">        
+          <li class="dropdown" id="navSetting">
+            <a href="#" class="dropdown-toggle" data-toggle="dropdown" role="button" aria-haspopup="true" aria-expanded="false"> <i class="glyphicon glyphicon-user"></i> <span class="caret"></span></a>
+            <ul class="dropdown-menu">    
+              <?php if(isset($_SESSION['userId']) && $_SESSION['userId']==1) { ?>
+                <li id="topNavSetting"><a href="setting.php"> <i class="glyphicon glyphicon-wrench"></i> Setting</a></li>
+                <li id="topNavUser"><a href="user.php"> <i class="glyphicon glyphicon-user"></i> Add User</a></li>
+                <li id="topNavAudit"><a href="audit-logs.php"> <i class="glyphicon glyphicon-list-alt"></i> Audit Logs</a></li>
+              <?php } ?>              
+              <li id="topNavLogout"><a href="logout.php"> <i class="glyphicon glyphicon-log-out"></i> Logout</a></li>            
+            </ul>
+          </li>        
+        </ul>
       </ul>
     </div><!-- /.navbar-collapse -->
   </div><!-- /.container-fluid -->

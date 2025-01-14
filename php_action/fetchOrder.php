@@ -1,72 +1,73 @@
 <?php 	
 require_once 'core.php';
-require_once 'security_utils.php';
 
-// Enable error reporting
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+header('Content-Type: application/json');
 
-$sql = "SELECT o.order_id, o.order_date, o.client_name, o.client_contact, o.restock_reason,
-        COUNT(oi.order_item_id) as total_items,
-        GROUP_CONCAT(CONCAT(p.product_name, ' (', oi.quantity, ')') SEPARATOR ', ') as items
+$sql = "SELECT 
+            o.order_id,
+            o.order_date,
+            o.client_name,
+            o.client_contact,
+            o.restock_reason,
+            o.order_type,
+            COUNT(DISTINCT oi.order_item_id) as item_count,
+            SUM(CAST(oi.quantity AS DECIMAL(10,2))) as total_quantity,
+            GROUP_CONCAT(
+                CONCAT(p.product_name, ' (', oi.quantity, ')')
+                ORDER BY p.product_name
+                SEPARATOR ', '
+            ) as items_list
         FROM orders o
         LEFT JOIN order_item oi ON o.order_id = oi.order_id
         LEFT JOIN product p ON oi.product_id = p.product_id
         WHERE o.order_status = 1
-        GROUP BY o.order_id
+        GROUP BY o.order_id, o.order_date, o.client_name, o.client_contact, o.restock_reason, o.order_type
         ORDER BY o.order_date DESC";
 
-if(!$result = $connect->query($sql)) {
-    error_log("Error executing query: " . $connect->error);
-    die("Error: " . $connect->error);
-}
+$result = $connect->query($sql);
 
-// Debug information
-error_log("SQL Query: " . $sql);
-error_log("Number of rows: " . $result->num_rows);
+if(!$result) {
+    error_log("Error in query: " . $connect->error);
+    die(json_encode(array(
+        'data' => array(),
+        'error' => 'Error fetching orders: ' . $connect->error
+    )));
+}
 
 $output = array('data' => array());
 
-if($result->num_rows > 0) { 
-    while($row = $result->fetch_array()) {
-        $orderId = $row[0];
-        $orderDate = date('d/m/Y', strtotime($row[1]));
-        $clientName = $row[2];
-        $clientContact = $row[3];
-        $totalItems = $row[5];
-        $itemsList = $row[6];
-
-        error_log("Processing order ID: " . $orderId . " with " . $totalItems . " items");
-
-        // Action buttons
-        $button = '
-        <div class="btn-group">
-            <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                Action <span class="caret"></span>
-            </button>
-            <ul class="dropdown-menu">
-                <li><a href="#" class="editOrder" data-id="'.$orderId.'"> <i class="glyphicon glyphicon-edit"></i> Edit</a></li>
-                <li><a type="button" class="printOrder" data-id="'.$orderId.'"> <i class="glyphicon glyphicon-print"></i> Print </a></li>
-                <li><a type="button" data-toggle="modal" data-target="#removeOrderModal" onclick="removeOrder('.$orderId.')"> <i class="glyphicon glyphicon-trash"></i> Remove</a></li>       
-            </ul>
-        </div>';
-
-        // Create a tooltip with items list
-        $itemsTooltip = '<span data-toggle="tooltip" title="'.$itemsList.'">'.$totalItems.' items</span>';
-
-        $output['data'][] = array(
-            $orderDate,  // order date
-            $clientName,  // client name
-            $clientContact,  // client contact
-            $itemsTooltip,  // total items with tooltip
-            $button  // action buttons
-        );
+while($row = $result->fetch_assoc()) {
+    // Format date for display
+    $orderDate = date('d/m/Y', strtotime($row['order_date']));
+    
+    // Format items info for tooltip
+    $itemsInfo = $row['total_quantity'] . ' items';
+    if($row['items_list']) {
+        $itemsInfo = '<span data-toggle="tooltip" title="' . htmlspecialchars($row['items_list']) . '">' 
+                   . $row['total_quantity'] . ' items</span>';
     }
-} else {
-    error_log("No orders found with status = 1");
-}
 
-error_log("Final output: " . json_encode($output));
+    // Create action buttons
+    $actionButtons = '<div class="btn-group">
+                        <button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+                            Action <span class="caret"></span>
+                        </button>
+                        <ul class="dropdown-menu">
+                            <li><a href="#" onclick="editOrder('.$row['order_id'].')"><i class="glyphicon glyphicon-edit"></i> Edit</a></li>
+                            <li><a href="#" onclick="printOrder('.$row['order_id'].')"><i class="glyphicon glyphicon-print"></i> Print</a></li>
+                            <li><a href="#" onclick="removeOrder('.$row['order_id'].')"><i class="glyphicon glyphicon-trash"></i> Remove</a></li>
+                        </ul>
+                    </div>';
+
+    $output['data'][] = array(
+        $row['order_id'],      // [0] Order ID (hidden)
+        $orderDate,            // [1] Order Date
+        $row['client_name'],   // [2] Staff Name
+        $row['client_contact'],// [3] Contact
+        $itemsInfo,            // [4] Total Items with tooltip
+        $actionButtons         // [5] Action buttons
+    );
+}
 
 $connect->close();
 echo json_encode($output);

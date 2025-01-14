@@ -1,28 +1,72 @@
 <?php 	
-
 require_once 'core.php';
+require_once 'csrf_utils.php';
 
+// Set JSON header
+header('Content-Type: application/json');
 
-$valid['success'] = array('success' => false, 'messages' => array());
+$valid = array('success' => false, 'messages' => array());
 
-$orderId = $_POST['orderId'];
+// Validate CSRF token
+if (!CSRFProtection::validateToken()) {
+    $valid['success'] = false;
+    $valid['messages'] = "Invalid CSRF token";
+    echo json_encode($valid);
+    exit();
+}
 
-if($orderId) { 
+// Validate order ID
+if(isset($_POST['orderId']) && !empty($_POST['orderId'])) { 
+    $orderId = intval($_POST['orderId']);
+    
+    try {
+        // Start transaction
+        $connect->begin_transaction();
 
- $sql = "UPDATE orders SET order_status = 2 WHERE order_id = {$orderId}";
+        // First, delete order items
+        $deleteItemsSql = "DELETE FROM order_item WHERE order_id = ?";
+        $stmt = $connect->prepare($deleteItemsSql);
+        if (!$stmt) {
+            throw new Exception("Error preparing delete items query: " . $connect->error);
+        }
+        $stmt->bind_param("i", $orderId);
+        $itemResult = $stmt->execute();
+        $stmt->close();
 
- $orderItem = "UPDATE order_item SET order_item_status = 2 WHERE  order_id = {$orderId}";
+        if (!$itemResult) {
+            throw new Exception("Error deleting order items: " . $connect->error);
+        }
 
- if($connect->query($sql) === TRUE && $connect->query($orderItem) === TRUE) {
- 	$valid['success'] = true;
-	$valid['messages'] = "Successfully Removed";		
- } else {
- 	$valid['success'] = false;
- 	$valid['messages'] = "Error while remove the brand";
- }
- 
- $connect->close();
+        // Then, delete the order
+        $deleteOrderSql = "DELETE FROM orders WHERE order_id = ?";
+        $stmt = $connect->prepare($deleteOrderSql);
+        if (!$stmt) {
+            throw new Exception("Error preparing delete order query: " . $connect->error);
+        }
+        $stmt->bind_param("i", $orderId);
+        $orderResult = $stmt->execute();
+        $stmt->close();
 
- echo json_encode($valid);
- 
-} // /if $_POST
+        if (!$orderResult) {
+            throw new Exception("Error deleting order: " . $connect->error);
+        }
+
+        // If both operations succeeded, commit the transaction
+        $connect->commit();
+        $valid['success'] = true;
+        $valid['messages'] = "Order Successfully Removed";
+
+    } catch (Exception $e) {
+        // If any operation failed, rollback the transaction
+        $connect->rollback();
+        $valid['success'] = false;
+        $valid['messages'] = "Error: " . $e->getMessage();
+        error_log("Exception removing order: " . $e->getMessage());
+    }
+} else {
+    $valid['success'] = false;
+    $valid['messages'] = "Invalid order ID";
+}
+
+$connect->close();
+echo json_encode($valid);

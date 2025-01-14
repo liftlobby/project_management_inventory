@@ -1,7 +1,4 @@
 <?php 
-// Prevent any output before our JSON response
-ob_start();
-
 require_once 'core.php';
 
 // Function to handle errors and return JSON response
@@ -9,7 +6,6 @@ function handleError($message, $error = null) {
     if ($error) {
         error_log("Error in printOrder.php: " . print_r($error, true));
     }
-    ob_clean(); // Clear any output
     header('Content-Type: application/json');
     echo json_encode(array('success' => false, 'messages' => $message));
     exit();
@@ -26,101 +22,77 @@ try {
         handleError('Invalid order ID');
     }
 
-    // Prepare and execute query to fetch order details
-    $sql = "SELECT orders.order_date, orders.client_name, orders.client_contact, orders.restock_reason,
-            order_item.rate, order_item.quantity, order_item.total,
-            product.product_name 
-            FROM orders 
-            INNER JOIN order_item ON orders.order_id = order_item.order_id 
-            INNER JOIN product ON order_item.product_id = product.product_id 
-            WHERE orders.order_id = ?";
+    // First get the order details
+    $orderSql = "SELECT order_id, order_date, client_name, client_contact, restock_reason 
+                 FROM orders 
+                 WHERE order_id = ? AND order_status = 1";
 
-    $stmt = $connect->prepare($sql);
-    if (!$stmt) {
+    $orderStmt = $connect->prepare($orderSql);
+    if (!$orderStmt) {
         handleError('Database prepare error', $connect->error);
     }
 
-    $stmt->bind_param("i", $orderId);
-    if (!$stmt->execute()) {
-        handleError('Error executing query', $stmt->error);
+    $orderStmt->bind_param("i", $orderId);
+    if (!$orderStmt->execute()) {
+        handleError('Error executing query', $orderStmt->error);
     }
 
-    $result = $stmt->get_result();
-    if ($result->num_rows == 0) {
-        handleError('Order not found');
+    $orderResult = $orderStmt->get_result();
+    if ($orderResult->num_rows == 0) {
+        handleError('Order not found or has been removed');
     }
 
-    // Get first row for order details
-    $orderData = $result->fetch_array();
-    $orderDate = date('F j, Y', strtotime($orderData[0])); // Format date nicely
-    $clientName = $orderData[1];
-    $clientContact = $orderData[2]; 
-    $restockReason = $orderData[3];
-
-    // Build HTML table with better styling
-    $table = '
-    <style>
-        .print-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-        .print-table th, .print-table td { padding: 8px; text-align: center; border: 1px solid #ddd; }
-        .print-table th { background-color: #f5f5f5; }
-        .print-header { font-size: 24px; font-weight: bold; margin-bottom: 20px; text-align: center; }
-        .print-details { font-size: 14px; margin-bottom: 20px; text-align: center; line-height: 1.5; }
-        .print-total { font-weight: bold; }
-    </style>
-    <div class="print-header">Order Summary</div>
-    <div class="print-details">
-        Order Date: '.htmlspecialchars($orderDate).'<br> 
-        Staff Name: '.htmlspecialchars($clientName).'<br> 
-        Contact: '.htmlspecialchars($clientContact).'<br>
-        Restock Reason: '.htmlspecialchars($restockReason).'
-    </div>
-    <table class="print-table">
-        <thead>
-            <tr>
-                <th>Product Name</th>
-                <th>Rate</th>
-                <th>Quantity</th>
-                <th>Total</th>
-            </tr>
-        </thead>
-        <tbody>';
-
-    // Reset result pointer
-    $result->data_seek(0);
-    $totalAmount = 0;
+    $orderInfo = $orderResult->fetch_assoc();
     
-    while($row = $result->fetch_array()) {
-        $table .= '<tr>
-            <td>'.htmlspecialchars($row['product_name']).'</td>
-            <td>$'.htmlspecialchars(number_format((float)$row['rate'], 2)).'</td>
-            <td>'.htmlspecialchars($row['quantity']).'</td>
-            <td>$'.htmlspecialchars(number_format((float)$row['total'], 2)).'</td>
-        </tr>';
-        $totalAmount += (float)$row['total'];
+    // Then get the order items
+    $itemsSql = "SELECT p.product_name, p.rate, oi.quantity, (p.rate * oi.quantity) as total
+                 FROM order_item oi
+                 JOIN product p ON oi.product_id = p.product_id
+                 WHERE oi.order_id = ?";
+
+    $itemsStmt = $connect->prepare($itemsSql);
+    if (!$itemsStmt) {
+        handleError('Database prepare error', $connect->error);
     }
 
-    $table .= '
-        </tbody>
-        <tfoot>
-            <tr class="print-total">
-                <td colspan="3">Total Amount</td>
-                <td>$'.htmlspecialchars(number_format($totalAmount, 2)).'</td>
-            </tr>
-        </tfoot>
-    </table>';
+    $itemsStmt->bind_param("i", $orderId);
+    if (!$itemsStmt->execute()) {
+        handleError('Error executing query', $itemsStmt->error);
+    }
 
-    // Return success response with table HTML
-    ob_clean();
-    header('Content-Type: application/json');
-    echo json_encode(array(
+    $itemsResult = $itemsStmt->get_result();
+    
+    // Prepare response data
+    $orderItems = array();
+    $total = 0;
+    
+    while($item = $itemsResult->fetch_assoc()) {
+        $orderItems[] = array(
+            'productName' => $item['product_name'],
+            'rate' => $item['rate'],
+            'quantity' => $item['quantity'],
+            'total' => $item['total']
+        );
+        $total += floatval($item['total']);
+    }
+
+    // Format the response
+    $response = array(
         'success' => true,
-        'messages' => 'Order printed successfully',
-        'html' => $table
-    ));
+        'orderInfo' => array(
+            'orderDate' => date('d/m/Y', strtotime($orderInfo['order_date'])),
+            'clientName' => $orderInfo['client_name'],
+            'clientContact' => $orderInfo['client_contact'],
+            'restockReason' => $orderInfo['restock_reason']
+        ),
+        'orderItems' => $orderItems,
+        'orderTotal' => number_format($total, 2)
+    );
 
-    $stmt->close();
-    $connect->close();
+    // Send JSON response
+    header('Content-Type: application/json');
+    echo json_encode($response);
 
 } catch (Exception $e) {
-    handleError('Server error: ' . $e->getMessage());
+    handleError('Server error: ' . $e->getMessage(), $e);
 }

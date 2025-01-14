@@ -46,11 +46,12 @@ require_once 'includes/header.php';
 				<table class="table table-bordered table-striped" id="manageOrderTable">
 					<thead>
 						<tr>
+							<th style="display:none;">Order ID</th>
 							<th>Order Date</th>
 							<th>Staff Name</th>
 							<th>Contact</th>
-							<th>Total Products</th>
-							<th>Options</th>
+							<th>Total Items</th>
+							<th>Actions</th>
 						</tr>
 					</thead>
 				</table>
@@ -73,29 +74,30 @@ require_once 'includes/header.php';
           <div id="add-order-messages"></div>
           <?php outputCSRFTokenField(); ?>
           <div class="form-group">
-            <label for="orderDate" class="col-sm-3 control-label">Order Date</label>
+            <label class="col-sm-3 control-label">Order Date</label>
             <div class="col-sm-9">
-              <input type="text" class="form-control" id="orderDate" name="orderDate" autocomplete="off" />
+              <input type="date" class="form-control" id="orderDate" name="orderDate" autocomplete="off" required />
             </div>
           </div>
           <div class="form-group">
-            <label for="clientName" class="col-sm-3 control-label">Staff Name</label>
+            <label class="col-sm-3 control-label">Staff Name</label>
             <div class="col-sm-9">
-              <input type="text" class="form-control" id="clientName" name="clientName" placeholder="Staff Name" autocomplete="off" />
+              <input type="text" class="form-control" id="clientName" name="clientName" placeholder="Staff Name" autocomplete="off" required />
             </div>
           </div>
           <div class="form-group">
-            <label for="clientContact" class="col-sm-3 control-label">Staff Contact</label>
+            <label class="col-sm-3 control-label">Contact</label>
             <div class="col-sm-9">
-              <input type="text" class="form-control" id="clientContact" name="clientContact" placeholder="Contact Number" autocomplete="off" />
+              <input type="text" class="form-control" id="clientContact" name="clientContact" placeholder="Contact" autocomplete="off" required />
             </div>
           </div>
           <div class="form-group">
-            <label for="restock_reason" class="col-sm-3 control-label">Restock Reason</label>
+            <label class="col-sm-3 control-label">Restock Reason</label>
             <div class="col-sm-9">
-              <textarea class="form-control" id="restock_reason" name="restock_reason" placeholder="Reason for restocking" rows="3"></textarea>
+              <textarea class="form-control" id="restockReason" name="restockReason" rows="3" placeholder="Reason for restocking"></textarea>
             </div>
           </div>
+
           <table class="table" id="productTable">
             <thead>
               <tr>
@@ -107,49 +109,37 @@ require_once 'includes/header.php';
               </tr>
             </thead>
             <tbody>
-              <tr id="row1" class="0">
-                <td style="margin-left:20px;">
-                  <div class="form-group">
-                    <select class="form-control" name="productName[]" id="productName1" onchange="getProductData(1)">
-                      <option value="">~~SELECT~~</option>
-                      <?php
-                      $productSql = "SELECT * FROM product WHERE active = 1 AND status = 1";
-                      $productData = $connect->query($productSql);
-                      while($row = $productData->fetch_array()) {
-                        echo "<option value='".$row['product_id']."' id='changeProduct".$row['product_id']."'>".$row['product_name']."</option>";
-                      }
-                      ?>
-                    </select>
-                  </div>
-                </td>
-                <td style="padding-left:20px;">
-                  <input type="text" name="rate[]" id="rate1" autocomplete="off" disabled="true" class="form-control" />
-                  <input type="hidden" name="rateValue[]" id="rateValue1" autocomplete="off" class="form-control" />
-                </td>
-                <td style="padding-left:20px;">
-                  <div class="form-group">
-                    <input type="number" name="quantity[]" id="quantity1" onkeyup="getTotal(1)" autocomplete="off" class="form-control" min="1" />
-                  </div>
-                </td>
-                <td style="padding-left:20px;">
-                  <input type="text" name="total[]" id="total1" autocomplete="off" class="form-control" disabled="true" />
-                  <input type="hidden" name="totalValue[]" id="totalValue1" autocomplete="off" class="form-control" />
+              <tr id="row1" data-id="1">
+                <td>
+                  <select class="form-control" name="productName[]" id="productName1" required>
+                    <option value="">~~SELECT~~</option>
+                  </select>
                 </td>
                 <td>
-                  <button class="btn btn-danger removeProductRowBtn" type="button" onclick="removeProductRow(1)"><i class="glyphicon glyphicon-trash"></i></button>
+                  <input type="text" name="rate[]" id="rate1" class="form-control" readonly />
+                </td>
+                <td>
+                  <input type="number" name="quantity[]" id="quantity1" class="form-control" min="1" required />
+                </td>
+                <td>
+                  <input type="text" name="total[]" id="total1" class="form-control" readonly />
+                </td>
+                <td>
+                  <button type="button" class="btn btn-danger removeProductRowBtn" data-id="1"><i class="glyphicon glyphicon-trash"></i></button>
                 </td>
               </tr>
             </tbody>
           </table>
+
           <div class="form-group">
             <div class="col-sm-offset-3 col-sm-9">
-              <button type="button" class="btn btn-primary" onclick="addRow()" id="addRowBtn" data-loading-text="Loading..."> <i class="glyphicon glyphicon-plus-sign"></i> Add Row </button>
+              <button type="button" class="btn btn-primary" id="addRowBtn">Add Product</button>
             </div>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-default" data-dismiss="modal"> <i class="glyphicon glyphicon-remove-sign"></i> Close</button>
-          <button type="submit" class="btn btn-primary" id="createOrderBtn" data-loading-text="Loading..." autocomplete="off"> <i class="glyphicon glyphicon-ok-sign"></i> Save Changes</button>
+          <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+          <button type="submit" class="btn btn-primary" id="createOrderBtn">Save changes</button>
         </div>
       </form>
     </div>
@@ -158,124 +148,67 @@ require_once 'includes/header.php';
 
 <!-- edit order -->
 <div class="modal fade" id="editOrderModal" tabindex="-1" role="dialog">
-  <div class="modal-dialog modal-lg">
+  <div class="modal-dialog">
     <div class="modal-content">
     	<form class="form-horizontal" id="editOrderForm" action="php_action/editOrder.php" method="POST">
 	      <div class="modal-header">
 	        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-	        <h4 class="modal-title"><i class="fa fa-edit"></i> Edit Order</h4>
+	        <h4 class="modal-title"><i class="glyphicon glyphicon-edit"></i> Edit Order</h4>
 	      </div>
-	      <div class="modal-body" style="max-height:450px; overflow:auto;">
-
-	      	<div id="edit-order-messages"></div>
-
+	      <div class="modal-body">
+	      	<div class="edit-messages"></div>
             <div class="form-group">
-	        	<label for="editOrderDate" class="col-sm-2 control-label">Order Date</label>
-	        	<div class="col-sm-10">
-	        		<input type="text" class="form-control" id="editOrderDate" name="editOrderDate" autocomplete="off">
+	        	<label class="col-sm-3 control-label">Order Date</label>
+	        	<div class="col-sm-9">
+	        		<input type="date" class="form-control" id="editOrderDate" name="editOrderDate" autocomplete="off" required />
 	        	</div>
 	        </div> <!-- /form-group-->
 
 	        <div class="form-group">
-	        	<label for="editClientName" class="col-sm-2 control-label">Client Name</label>
-	        	<div class="col-sm-10">
-	        		<input type="text" class="form-control" id="editClientName" name="editClientName" placeholder="Client Name" autocomplete="off">
+	        	<label class="col-sm-3 control-label">Staff Name</label>
+	        	<div class="col-sm-9">
+	        		<input type="text" class="form-control" id="editClientName" name="editClientName" placeholder="Staff Name" autocomplete="off" required />
 	        	</div>
 	        </div> <!-- /form-group-->
 
 	        <div class="form-group">
-	        	<label for="editClientContact" class="col-sm-2 control-label">Client Contact</label>
-	        	<div class="col-sm-10">
-	        		<input type="text" class="form-control" id="editClientContact" name="editClientContact" placeholder="Contact Number" autocomplete="off">
+	        	<label class="col-sm-3 control-label">Contact</label>
+	        	<div class="col-sm-9">
+	        		<input type="text" class="form-control" id="editClientContact" name="editClientContact" placeholder="Contact" autocomplete="off" required />
 	        	</div>
 	        </div> <!-- /form-group-->	
 
             <div class="form-group">
-                <label for="editRestockReason" class="col-sm-2 control-label">Restock Reason</label>
-                <div class="col-sm-10">
-                    <input type="text" class="form-control" id="editRestockReason" name="editRestockReason" placeholder="Restock Reason" autocomplete="off">
+                <label class="col-sm-3 control-label">Restock Reason</label>
+                <div class="col-sm-9">
+                    <textarea class="form-control" id="editRestockReason" name="editRestockReason" rows="3" placeholder="Reason for restocking"></textarea>
                 </div>
             </div> <!-- /form-group-->
 
 	        <table class="table" id="editProductTable">
 	        	<thead>
-	        		<tr>			  			
+	        		<tr>
 	        			<th style="width:40%;">Product</th>
-	        			<th style="width:15%;">Rate</th>
-	        			<th style="width:15%;">Available</th>			  			
-	        			<th style="width:15%;">Quantity</th>			  			
-	        			<th style="width:15%;">Total</th>			  			
+	        			<th style="width:20%;">Rate</th>
+	        			<th style="width:15%;">Quantity</th>
+	        			<th style="width:15%;">Total</th>
 	        			<th style="width:10%;"></th>
 	        		</tr>
 	        	</thead>
 	        	<tbody>
-	        		<?php
-	        		$arrayNumber = 0;
-	        		for($x = 1; $x < 4; $x++) { ?>
-	        			<tr id="row<?php echo $x; ?>" class="<?php echo $arrayNumber; ?>">		  				
-	        				<td>
-	        					<div class="form-group">
-	        						<select class="form-control" name="editProductName[]" id="editProductName<?php echo $x; ?>" onchange="getEditProductData(<?php echo $x; ?>)">
-	        							<option value="">~~SELECT~~</option>
-	        							<?php
-	        								$productSql = "SELECT * FROM product WHERE active = 1 AND status = 1 AND quantity != 0";
-	        								$productData = $connect->query($productSql);
-
-	        								while($row = $productData->fetch_array()) {									 		
-	        									echo "<option value='".$row['product_id']."' id='changeProduct".$row['product_id']."'>".$row['product_name']."</option>";
-	        								} // /while 
-	        							?>
-	        						</select>
-	        					</div>
-	        				</td>
-	        				<td>			  					
-	        					<input type="text" name="editRate[]" id="editRate<?php echo $x; ?>" autocomplete="off" disabled="true" class="form-control" />			  					
-	        					<input type="hidden" name="editRateValue[]" id="editRateValue<?php echo $x; ?>" autocomplete="off" class="form-control" />			  					
-	        				</td>
-	        				<td>
-	        					<div class="form-group">
-	        						<span id="editAvailable<?php echo $x; ?>"></span>
-	        					</div>
-	        				</td>
-	        				<td>
-	        					<div class="form-group">
-	        					<input type="number" name="editQuantity[]" id="editQuantity<?php echo $x; ?>" onchange="getEditTotal(<?php echo $x; ?>)" autocomplete="off" class="form-control" min="1" />
-	        					</div>
-	        				</td>
-	        				<td>			  					
-	        					<input type="text" name="editTotal[]" id="editTotal<?php echo $x; ?>" autocomplete="off" class="form-control" disabled="true" />			  					
-	        					<input type="hidden" name="editTotalValue[]" id="editTotalValue<?php echo $x; ?>" autocomplete="off" class="form-control" />			  					
-	        				</td>
-	        				<td>
-	        					<button class="btn btn-danger removeEditProductRowBtn" type="button" onclick="removeEditProductRow(<?php echo $x; ?>)"><i class="glyphicon glyphicon-trash"></i></button>
-	        				</td>
-	        			</tr>
-	        		<?php
-	        		$arrayNumber++;
-	        		} // /for
-	        		?>
-	        	</tbody>			  	
+	        	</tbody>
 	        </table>
 
-            <div class="form-group">
-                <label for="grandTotal" class="col-sm-3 control-label">Grand Total</label>
-                <div class="col-sm-9">
-                    <h4><span id="grandTotal">0.00</span></h4>
-                </div>
-            </div>
-
-	        <div class="form-group editOrderFooter">
-	        	<div class="col-sm-offset-2 col-sm-10">
-	        		<button type="button" class="btn btn-default" onclick="addEditRow()" id="addRowBtn" data-loading-text="Loading..."> <i class="glyphicon glyphicon-plus-sign"></i> Add Row </button>
-	        	</div>
-	        </div>				
-      	        
-	      </div> <!-- /modal-body -->
-	      
+	        <div class="form-group">
+	            <div class="col-sm-offset-3 col-sm-9">
+	                <button type="button" class="btn btn-primary" id="editAddRowBtn">Add Product</button>
+	            </div>
+	        </div>
+	      </div>
 	      <div class="modal-footer editOrderFooter">
-	        <button type="button" class="btn btn-default" data-dismiss="modal"> <i class="glyphicon glyphicon-remove-sign"></i> Close</button>
-	        
-	        <button type="submit" class="btn btn-success" id="editOrderBtn" data-loading-text="Loading..."> <i class="glyphicon glyphicon-ok-sign"></i> Save Changes</button>
+	        <input type="hidden" name="orderId" id="orderId" />
+	        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+	        <button type="submit" class="btn btn-primary">Update</button>
 	      </div> <!-- /modal-footer -->				     
 	    </form> <!-- /.form -->				     	
     </div> <!-- /modal-content -->
@@ -291,31 +224,16 @@ require_once 'includes/header.php';
         <h4 class="modal-title"><i class="glyphicon glyphicon-trash"></i> Remove Order</h4>
       </div>
       <div class="modal-body">
-        <p>Do you really want to remove ?</p>
+        <div class="removeOrderMessages"></div>
+        <p>Do you really want to remove this order?</p>
       </div>
       <div class="modal-footer removeOrderFooter">
-        <button type="button" class="btn btn-default" data-dismiss="modal"> <i class="glyphicon glyphicon-remove-sign"></i> Close</button>
-        <button type="button" class="btn btn-primary" id="removeOrderBtn" data-loading-text="Loading..."> <i class="glyphicon glyphicon-ok-sign"></i> Save changes</button>
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-danger" id="removeOrderBtn">Remove</button>
       </div>
     </div>
   </div>
 </div>
-
-<script>
-$(document).ready(function() {
-    $('#manageOrderTable').DataTable({
-        'ajax': 'php_action/fetchOrder.php',
-        'order': [],
-        'columns': [
-            { data: 0 }, // order date
-            { data: 1 }, // client name
-            { data: 2 }, // contact
-            { data: 3 }, // total items
-            { data: 4 }  // action buttons
-        ]
-    });
-});
-</script>
 
 <script src="custom/js/order.js"></script>
 

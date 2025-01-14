@@ -1,120 +1,116 @@
 <?php
-// Prevent any output before our JSON response
-ob_start();
-
 require_once 'core.php';
-require_once 'db_connect.php';
 
-// Function to handle errors and return JSON response
-function handleError($message, $error = null) {
-    if ($error) {
-        error_log("Error in fetchSelectedOrder.php: " . print_r($error, true));
-        if (is_object($error) && method_exists($error, 'getTraceAsString')) {
-            error_log("Stack trace: " . $error->getTraceAsString());
-        }
-    }
-    ob_clean(); // Clear any output
-    header('Content-Type: application/json');
-    echo json_encode(array('success' => false, 'messages' => $message));
-    exit();
-}
+// Set JSON header
+header('Content-Type: application/json');
 
-try {
-    // Check if order ID is provided
-    if(!isset($_POST['orderId'])) {
-        handleError('Order ID not provided');
-    }
+$response = array(
+    'success' => false,
+    'messages' => array(),
+    'order' => array(),
+    'orderItems' => array(),
+    'products' => array()
+);
 
-    $orderId = intval($_POST['orderId']);
-    
-    if ($orderId <= 0) {
-        handleError('Invalid order ID');
-    }
+if($_POST && isset($_POST['orderId'])) {
+    $orderId = intval($_POST['orderId']); // Sanitize input
 
-    // Fetch order details
-    $orderSql = "SELECT o.*, oi.order_item_id, oi.product_id, oi.quantity, oi.rate, oi.total,
-                 p.product_name, p.quantity as available_quantity
-                 FROM orders o
-                 LEFT JOIN order_item oi ON o.order_id = oi.order_id
-                 LEFT JOIN product p ON oi.product_id = p.product_id
-                 WHERE o.order_id = ?";
-    
-    $stmt = $connect->prepare($orderSql);
-    if (!$stmt) {
-        handleError('Failed to prepare order query', $connect->error);
-    }
-    
+    // Get order details
+    $sql = "SELECT 
+                order_id,
+                order_date,
+                client_name,
+                client_contact,
+                restock_reason,
+                order_status,
+                order_type
+            FROM orders 
+            WHERE order_id = ? 
+            AND order_status = 1";
+            
+    $stmt = $connect->prepare($sql);
     $stmt->bind_param("i", $orderId);
-    if (!$stmt->execute()) {
-        handleError('Failed to execute order query', $stmt->error);
-    }
-    
+    $stmt->execute();
     $result = $stmt->get_result();
     
-    if ($result->num_rows === 0) {
-        handleError('Order not found');
-    }
-
-    // Initialize response arrays
-    $order = null;
-    $order_items = array();
-    
-    // Process results
-    while ($row = $result->fetch_assoc()) {
-        if (!$order) {
-            $order = array(
-                'order_id' => $row['order_id'],
-                'order_date' => $row['order_date'],
-                'client_name' => $row['client_name'],
-                'client_contact' => $row['client_contact'],
-                'restock_reason' => $row['restock_reason'],
-                'order_status' => $row['order_status']
+    if($result && $orderData = $result->fetch_assoc()) {
+        // Format date for display
+        $orderData['order_date'] = date('Y-m-d', strtotime($orderData['order_date']));
+        $response['order'] = array($orderData);
+        
+        // Get order items with product details
+        $orderItemSql = "SELECT 
+                            oi.order_item_id,
+                            oi.order_id,
+                            oi.product_id,
+                            oi.quantity,
+                            p.product_name,
+                            p.rate,
+                            p.product_image,
+                            p.brand_id,
+                            p.categories_id
+                        FROM order_item oi
+                        INNER JOIN product p ON oi.product_id = p.product_id 
+                        WHERE oi.order_id = ?
+                        ORDER BY p.product_name";
+                        
+        $stmt = $connect->prepare($orderItemSql);
+        $stmt->bind_param("i", $orderId);
+        $stmt->execute();
+        $itemResult = $stmt->get_result();
+        
+        while($row = $itemResult->fetch_assoc()) {
+            $response['orderItems'][] = array(
+                "order_item_id" => $row['order_item_id'],
+                "order_id" => $row['order_id'],
+                "product_id" => $row['product_id'],
+                "quantity" => $row['quantity'],
+                "product_name" => $row['product_name'],
+                "rate" => $row['rate']
             );
         }
         
-        if ($row['order_item_id']) {
-            $order_items[] = array(
-                'order_item_id' => $row['order_item_id'],
-                'product_id' => $row['product_id'],
-                'product_name' => $row['product_name'],
-                'quantity' => $row['quantity'],
-                'rate' => $row['rate'],
-                'total' => $row['total'],
-                'available_quantity' => $row['available_quantity']
+        // Get available products
+        $productSql = "SELECT 
+                        p.product_id,
+                        p.product_name,
+                        p.product_image,
+                        p.brand_id,
+                        p.categories_id,
+                        p.quantity,
+                        p.rate,
+                        b.brand_name,
+                        c.categories_name
+                      FROM product p
+                      LEFT JOIN brands b ON p.brand_id = b.brand_id
+                      LEFT JOIN categories c ON p.categories_id = c.categories_id
+                      WHERE p.active = 1 
+                      AND p.status = 1 
+                      ORDER BY p.product_name";
+                      
+        $productResult = $connect->query($productSql);
+        
+        while($row = $productResult->fetch_assoc()) {
+            $response['products'][] = array(
+                "product_id" => $row['product_id'],
+                "product_name" => $row['product_name'],
+                "product_image" => $row['product_image'],
+                "brand_id" => $row['brand_id'],
+                "brand_name" => $row['brand_name'],
+                "categories_id" => $row['categories_id'],
+                "categories_name" => $row['categories_name'],
+                "quantity" => $row['quantity'],
+                "rate" => $row['rate']
             );
         }
+        
+        $response['success'] = true;
+    } else {
+        $response['messages'][] = "Order not found or inactive";
     }
-    
-    // Fetch all active products for dropdown
-    $productSql = "SELECT product_id, product_name, quantity as available_quantity, rate 
-                   FROM product 
-                   WHERE active = 1 AND status = 1 
-                   ORDER BY product_name ASC";
-    
-    $productResult = $connect->query($productSql);
-    if (!$productResult) {
-        handleError('Failed to fetch products', $connect->error);
-    }
-    
-    $products = array();
-    while ($row = $productResult->fetch_assoc()) {
-        $products[] = $row;
-    }
-
-    // Send success response
-    ob_clean(); // Clear any output
-    header('Content-Type: application/json');
-    echo json_encode(array(
-        'success' => true,
-        'order' => $order,
-        'order_items' => $order_items,
-        'products' => $products
-    ));
-
-} catch (Exception $e) {
-    handleError('Server error: ' . $e->getMessage(), $e);
+} else {
+    $response['messages'][] = "Invalid request parameters";
 }
 
-// Close connections
-if (isset($stmt)) $stmt->close();
-if (isset($connect)) $connect->close();
+$connect->close();
+echo json_encode($response);

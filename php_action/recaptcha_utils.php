@@ -53,7 +53,7 @@ class ReCaptchaV3 {
                     // Add token to form
                     let tokenInput = document.createElement('input');
                     tokenInput.type = 'hidden';
-                    tokenInput.name = 'recaptcha_token';
+                    tokenInput.name = 'g-recaptcha-response';
                     tokenInput.value = token;
                     document.getElementById('$formId').appendChild(tokenInput);
                     

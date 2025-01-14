@@ -2,6 +2,15 @@
 require_once 'core.php';
 require_once 'security_utils.php';
 
+// Define if request is AJAX
+$isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+          strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
+
+// Ensure proper content type for JSON responses
+if ($isAjax) {
+    header('Content-Type: application/json');
+}
+
 if($_POST) {	
     try {
         // Debug logging
@@ -154,10 +163,6 @@ if($_POST) {
     }
     
     $connect->close();
-
-    // Check if this is an AJAX request
-    $isAjax = !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
-              strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) == 'xmlhttprequest';
 
     // For AJAX requests, return JSON
     if($isAjax) {

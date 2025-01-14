@@ -251,727 +251,635 @@ function removeEditProductRow(row) {
     calculateEditTotal();
 }
 
-$(document).ready(function() {
-    // Initialize the edit modal with proper options
-    $('#editOrderModal').modal({
-        backdrop: 'static',
-        keyboard: false,
-        show: false
-    });
-
-    // Single handler for edit form submission
-    $("#editOrderForm").unbind('submit').bind('submit', function(e) {
-        e.preventDefault();
-        var form = $(this);
-
-        // Clear previous messages
-        $('#edit-order-messages').html('');
-        
-        // Remove existing error classes
-        $('.form-group').removeClass('has-error').removeClass('has-success');
-        $('.text-danger').remove();
-        
-        // Get form values
-        var orderDate = $("#editOrderDate").val();
-        var clientName = $("#editClientName").val();
-        var clientContact = $("#editClientContact").val();
-        var orderStatus = $("#editOrderStatus").val();
-        var totalAmount = $("#editTotalAmount").val();
-
-        // Validate form fields
-        var isValid = true;
-        
-        if(!orderDate) {
-            $("#editOrderDate").after('<p class="text-danger">Order Date is required</p>');
-            $("#editOrderDate").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!clientName) {
-            $("#editClientName").after('<p class="text-danger">Client Name is required</p>');
-            $("#editClientName").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!clientContact) {
-            $("#editClientContact").after('<p class="text-danger">Client Contact is required</p>');
-            $("#editClientContact").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!orderStatus) {
-            $("#editOrderStatus").after('<p class="text-danger">Order Status is required</p>');
-            $("#editOrderStatus").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!totalAmount) {
-            $("#editTotalAmount").after('<p class="text-danger">Total Amount is required</p>');
-            $("#editTotalAmount").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-
-        if(isValid) {
-            // Show loading state
-            $("#editOrderBtn").button('loading');
-            
-            // Submit form via AJAX
-            $.ajax({
-                url: form.attr('action'),
-                type: form.attr('method'),
-                data: form.serialize(),
-                dataType: 'json',
-                success: function(response) {
-                    console.log("Server response:", response);
-                    $("#editOrderBtn").button('reset');
-                    
-                    if(response.success) {
-                        // Show success message
-                        $('#edit-order-messages').html('<div class="alert alert-success">'+
-                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-                        '</div>');
-
-                        // Reset form
-                        $("#editOrderForm")[0].reset();
-                        $(".text-danger").remove();
-                        $('.form-group').removeClass('has-error').removeClass('has-success');
-                        
-                        // Reload table
-                        manageOrderTable.ajax.reload(null, false);
-                        
-                        // Close modal after a short delay using requestAnimationFrame
-                        var closeModal = function() {
-                            $('#editOrderModal').modal('hide');
-                        };
-                        requestAnimationFrame(function() {
-                            requestAnimationFrame(closeModal);
-                        });
-                    } else {
-                        // Show error message
-                        $('#edit-order-messages').html('<div class="alert alert-danger">'+
-                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                            '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
-                        '</div>');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    $("#editOrderBtn").button('reset');
-                    console.error("Error details:", {status: status, error: error, response: xhr.responseText});
-                    
-                    // Show error message
-                    $('#edit-order-messages').html('<div class="alert alert-danger">'+
-                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Failed to save order. Please try again.'+
-                    '</div>');
-                }
-            });
-        }
-        return false;
-    });
-
-    // Edit button click handler
-    $("#editOrderBtn").click(function() {
-        $("#editOrderForm").submit();
-    });
-
-    // Prevent form from auto-submitting
-    $("#editOrderForm").submit(function(e) {
-        e.preventDefault();
-        // Your form submission logic here
-    });
-
-    // Edit order button click handler
-    $(document).on('click', '.editOrderBtn', function() {
-        var orderId = $(this).data('id');
-        
+// Print order function
+function printOrder(orderId) {
+    if(orderId) {
         $.ajax({
-            url: 'php_action/fetchSelectedOrder.php',
-            type: 'post',
+            url: 'php_action/printOrder.php',
+            type: 'POST',
             data: {orderId: orderId},
             dataType: 'json',
             success: function(response) {
-                // Clear previous data
-                $("#editProductTable tbody").empty();
-                
-                // Set order details
-                $("#editOrderId").val(response.order.order_id);
-                $("#editOrderDate").val(response.order.order_date);
-                $("#editClientName").val(response.order.client_name);
-                $("#editClientContact").val(response.order.client_contact);
-                $("#editRestockReason").val(response.order.restock_reason);
-                $("#editOrderStatus").val(response.order.order_status);
-
-                // Add product rows
-                if(response.order_items && response.order_items.length > 0) {
-                    response.order_items.forEach(function(item, index) {
-                        var count = index + 1;
-                        var tr = '<tr id="row'+count+'" class="'+index+'">'+
-                            '<td>'+
-                                '<div class="form-group">'+
-                                '<select class="form-control" name="editProductName[]" id="editProductName'+count+'" onchange="getEditProductData('+count+')" >'+
-                                    '<option value="">~~SELECT~~</option>';
-                                    response.products.forEach(function(product) {
-                                        var selected = (product.product_id == item.product_id) ? 'selected' : '';
-                                        tr += '<option value="'+product.product_id+'" '+selected+'>'+product.product_name+'</option>';
-                                    });
-                        tr += '</select>'+
-                                '</div>'+
-                            '</td>'+
-                            '<td>'+
-                                '<input type="text" name="editRate[]" id="editRate'+count+'" value="'+item.rate+'" autocomplete="off" disabled="true" class="form-control" />'+
-                                '<input type="hidden" name="editRateValue[]" id="editRateValue'+count+'" value="'+item.rate+'" autocomplete="off" class="form-control" />'+
-                            '</td>'+
-                            '<td>'+
-                                '<div class="form-group">'+
-                                '<span id="editAvailable'+count+'">'+item.available_quantity+'</span>'+
-                                '</div>'+
-                            '</td>'+
-                            '<td>'+
-                                '<div class="form-group">'+
-                                '<input type="number" name="editQuantity[]" id="editQuantity'+count+'" value="'+item.quantity+'" onchange="getEditTotal('+count+')" class="form-control" min="1" />'+
-                                '</div>'+
-                            '</td>'+
-                            '<td>'+
-                                '<input type="text" name="editTotal[]" id="editTotal'+count+'" value="'+item.total+'" autocomplete="off" class="form-control" disabled="true" />'+
-                                '<input type="hidden" name="editTotalValue[]" id="editTotalValue'+count+'" value="'+item.total+'" autocomplete="off" class="form-control" />'+
-                            '</td>'+
-                            '<td>'+
-                                '<button class="btn btn-danger removeEditProductRowBtn" type="button" onclick="removeEditProductRow('+count+')"><i class="glyphicon glyphicon-trash"></i></button>'+
-                            '</td>'+
-                        '</tr>';
-                        $("#editProductTable tbody").append(tr);
+                if(response.success) {
+                    // Create print window content
+                    var printContent = `
+                        <!DOCTYPE html>
+                        <html>
+                        <head>
+                            <title>Order Details</title>
+                            <style>
+                                body { font-family: Arial, sans-serif; margin: 20px; }
+                                .print-header { text-align: center; margin-bottom: 20px; }
+                                .print-details { margin-bottom: 20px; }
+                                .print-details p { margin: 5px 0; }
+                                .print-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+                                .print-table th, .print-table td { 
+                                    border: 1px solid #ddd; 
+                                    padding: 8px; 
+                                    text-align: left; 
+                                }
+                                .print-table th { background-color: #f5f5f5; }
+                                .print-total { font-weight: bold; }
+                                @media print {
+                                    .print-header { margin-top: 0; }
+                                    .no-print { display: none; }
+                                    body { margin: 0; }
+                                }
+                            </style>
+                        </head>
+                        <body>
+                            <div class="print-header">
+                                <h2>Order Details</h2>
+                            </div>
+                            <div class="print-details">
+                                <p><strong>Order Date:</strong> ${response.orderInfo.orderDate}</p>
+                                <p><strong>Staff Name:</strong> ${response.orderInfo.clientName}</p>
+                                <p><strong>Contact:</strong> ${response.orderInfo.clientContact}</p>
+                                <p><strong>Restock Reason:</strong> ${response.orderInfo.restockReason || 'N/A'}</p>
+                            </div>
+                            <table class="print-table">
+                                <thead>
+                                    <tr>
+                                        <th>Product Name</th>
+                                        <th>Rate</th>
+                                        <th>Quantity</th>
+                                        <th>Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>`;
+                    
+                    response.orderItems.forEach(function(item) {
+                        printContent += `
+                            <tr>
+                                <td>${item.productName}</td>
+                                <td>$${parseFloat(item.rate).toFixed(2)}</td>
+                                <td>${item.quantity}</td>
+                                <td>$${parseFloat(item.total).toFixed(2)}</td>
+                            </tr>`;
                     });
+                    
+                    printContent += `
+                                </tbody>
+                                <tfoot>
+                                    <tr class="print-total">
+                                        <td colspan="3" style="text-align: right;"><strong>Grand Total:</strong></td>
+                                        <td>$${response.orderTotal}</td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                            <div class="no-print" style="text-align: center; margin-top: 20px;">
+                                <button onclick="window.print();" style="padding: 8px 16px; background: #007bff; color: white; border: none; border-radius: 4px; margin-right: 10px; cursor: pointer;">Print</button>
+                                <button onclick="window.close();" style="padding: 8px 16px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">Close</button>
+                            </div>
+                        </body>
+                        </html>`;
+                
+                    // Open new window and write content
+                    var printWindow = window.open('', '_blank', 'height=600,width=800');
+                    printWindow.document.write(printContent);
+                    printWindow.document.close();
+                } else {
+                    alert('Error: ' + response.messages);
                 }
-
-                // Calculate total
-                calculateEditTotal();
-
-                // Show modal
-                $("#editOrderModal").modal('show');
             },
             error: function(xhr, status, error) {
-                console.error("Error fetching order:", error);
-                alert("Error fetching order details. Please try again.");
+                console.error('Error:', error);
+                alert('An error occurred while printing the order. Please try again.');
             }
         });
-    });
+    }
+}
 
-    // Save edit order changes
-    $("#editOrderBtn").click(function() {
-        var $btn = $(this);
-        $btn.button('loading');
-        
-        var form = $("#editOrderForm");
-        var formData = new FormData(form[0]);
-        
+function editOrder(orderId) {
+    $("#editOrderForm")[0].reset();
+    $('.form-group').removeClass('has-error').removeClass('has-success');
+    $('.text-danger').remove();
+    
+    $.ajax({
+        url: 'php_action/fetchSelectedOrder.php',
+        type: 'post',
+        data: {orderId: orderId},
+        dataType: 'json',
+        success:function(response) {
+            console.log('Response:', response); // Debug log
+            if(response.success == true) {            
+                // modal loading
+                $('.modal-loading').addClass('div-hide');
+                // modal result
+                $('.edit-order-result').removeClass('div-hide');
+                // modal footer
+                $('.editOrderFooter').removeClass('div-hide');
+
+                $('#editOrderForm .form-group').removeClass('has-error').removeClass('has-success');
+
+                // Get the first order since it's in an array
+                var orderData = response.order[0];
+                
+                // set the order date
+                $("#editOrderDate").val(orderData.order_date);
+                // set the client name
+                $("#editClientName").val(orderData.client_name);
+                // set the client contact
+                $("#editClientContact").val(orderData.client_contact);
+                // set restock reason
+                $("#editRestockReason").val(orderData.restock_reason);
+
+                // array of product objects
+                var orderItems = response.orderItems;
+                var productTable = $("#editProductTable");
+                
+                // clear the table except the header row
+                productTable.find("tr:gt(0)").remove();
+
+                // populate the product table
+                orderItems.forEach(function(item) {
+                    var row = $("<tr>");
+                    
+                    // Product dropdown
+                    var productCell = $("<td>");
+                    var productSelect = $("<select>").addClass("form-control").attr("name", "editProductName[]");
+                    
+                    // Add options from available products
+                    response.products.forEach(function(product) {
+                        productSelect.append(
+                            $("<option>")
+                                .val(product.product_id)
+                                .text(product.product_name)
+                                .prop("selected", product.product_id == item.product_id)
+                        );
+                    });
+                    
+                    productCell.append(productSelect);
+                    row.append(productCell);
+                    
+                    // Quantity input
+                    row.append($("<td>").append(
+                        $("<input>")
+                            .addClass("form-control")
+                            .attr({
+                                type: "number",
+                                name: "editQuantity[]",
+                                value: item.quantity,
+                                min: "1"
+                            })
+                    ));
+                    
+                    // Rate display
+                    row.append($("<td>").append(
+                        $("<input>")
+                            .addClass("form-control")
+                            .attr({
+                                type: "text",
+                                name: "editRate[]",
+                                value: item.rate,
+                                readonly: true
+                            })
+                    ));
+                    
+                    // Remove button
+                    row.append($("<td>").append(
+                        $("<button>")
+                            .addClass("btn btn-danger removeProductRowBtn")
+                            .attr("type", "button")
+                            .append($("<i>").addClass("glyphicon glyphicon-trash"))
+                    ));
+                    
+                    productTable.append(row);
+                });
+
+                // add order id to form
+                $("#orderId").val(orderId);
+
+                // show modal
+                $("#editOrderModal").modal('show');
+            } else {
+                alert('Error: ' + (response.messages || 'Failed to fetch order details'));
+            }
+        },
+        error: function(xhr, status, error) {
+            console.error('AJAX Error:', error); // Debug log
+            alert('Error: ' + error);
+        }
+    });
+}
+
+function printOrder(orderId) {
+    $.ajax({
+        url: 'php_action/printOrder.php',
+        type: 'POST',
+        data: {orderId: orderId},
+        dataType: 'json',
+        success: function(response) {
+            if(response.success == true) {
+                var printWindow = window.open('', '_blank');
+                printWindow.document.write('<html><head><title>Order Details</title>');
+                printWindow.document.write('<style>');
+                printWindow.document.write('body { font-family: Arial, sans-serif; }');
+                printWindow.document.write('table { width: 100%; border-collapse: collapse; margin-top: 20px; }');
+                printWindow.document.write('th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }');
+                printWindow.document.write('th { background-color: #f5f5f5; }');
+                printWindow.document.write('</style>');
+                printWindow.document.write('</head><body>');
+                printWindow.document.write('<h2>Order Details</h2>');
+                printWindow.document.write('<p><strong>Order Date:</strong> ' + response.order.order_date + '</p>');
+                printWindow.document.write('<p><strong>Staff Name:</strong> ' + response.order.client_name + '</p>');
+                printWindow.document.write('<p><strong>Contact:</strong> ' + response.order.client_contact + '</p>');
+                if(response.order.restock_reason) {
+                    printWindow.document.write('<p><strong>Restock Reason:</strong> ' + response.order.restock_reason + '</p>');
+                }
+                printWindow.document.write('<table>');
+                printWindow.document.write('<thead><tr><th>Product</th><th>Quantity</th><th>Rate</th><th>Total</th></tr></thead>');
+                printWindow.document.write('<tbody>');
+                
+                var grandTotal = 0;
+                response.items.forEach(function(item) {
+                    var total = parseFloat(item.rate) * parseInt(item.quantity);
+                    grandTotal += total;
+                    printWindow.document.write('<tr>');
+                    printWindow.document.write('<td>' + item.product_name + '</td>');
+                    printWindow.document.write('<td>' + item.quantity + '</td>');
+                    printWindow.document.write('<td>$' + parseFloat(item.rate).toFixed(2) + '</td>');
+                    printWindow.document.write('<td>$' + total.toFixed(2) + '</td>');
+                    printWindow.document.write('</tr>');
+                });
+                
+                printWindow.document.write('</tbody>');
+                printWindow.document.write('<tfoot><tr><th colspan="3">Grand Total</th><th>$' + grandTotal.toFixed(2) + '</th></tr></tfoot>');
+                printWindow.document.write('</table>');
+                printWindow.document.write('</body></html>');
+                printWindow.document.close();
+                printWindow.print();
+            } else {
+                alert('Error: ' + response.messages);
+            }
+        },
+        error: function(xhr, status, error) {
+            alert('Error: ' + error);
+        }
+    });
+}
+
+function removeOrder(orderId) {
+    $("#removeOrderBtn").unbind('click').bind('click', function() {
         $.ajax({
-            url: form.attr('action'),
-            type: form.attr('method'),
-            data: formData,
+            url: 'php_action/removeOrder.php',
+            type: 'post',
+            data: {orderId: orderId},
             dataType: 'json',
-            processData: false,
-            contentType: false,
-            success: function(response) {
-                $btn.button('reset');
-                if(response.success) {
-                    $("#editOrderModal").modal('hide');
-                    // Refresh order table
-                    $("#manageOrderTable").DataTable().ajax.reload(null, false);
-                    // Show success message
-                    $(".remove-messages").html('<div class="alert alert-success">'+
+            success:function(response) {
+                if(response.success == true) {
+                    $("#removeOrderModal").modal('hide');
+                    
+                    // refresh the table
+                    manageOrderTable.ajax.reload(null, false);
+                    
+                    $('.remove-messages').html('<div class="alert alert-success">'+
                         '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
                         '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
                     '</div>');
                 } else {
-                    // Show error message
-                    $("#edit-order-messages").html('<div class="alert alert-warning">'+
+                    $('.removeOrderMessages').html('<div class="alert alert-warning">'+
                         '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
                         '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
                     '</div>');
                 }
-            },
-            error: function(xhr, status, error) {
-                $btn.button('reset');
-                console.error("Error saving order:", error);
-                $("#edit-order-messages").html('<div class="alert alert-danger">'+
-                    '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                    '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Error saving order. Please try again.'+
-                '</div>');
             }
         });
     });
+}
 
-    // Payment Place change event
-    $("#paymentPlace").change(function(){
-        $("#subTotal").val($("#grandTotal").text());
-        $("#totalAmount").val($("#grandTotal").text());
-    });
+var manageOrderTable;
 
-    // Initialize datepicker for order date
-    $('#orderDate').datepicker({
-        format: "yyyy-mm-dd",
-        autoclose: true,
-        todayHighlight: true,
-        startDate: '0d' // Can select today and future dates
-    });
-
-    // Set default date to today
-    var today = new Date();
-    var dd = String(today.getDate()).padStart(2, '0');
-    var mm = String(today.getMonth() + 1).padStart(2, '0');
-    var yyyy = today.getFullYear();
-    today = yyyy + '-' + mm + '-' + dd;
-    $('#orderDate').val(today);
-
-    // Initialize order table only if it hasn't been initialized yet
-    if (!$.fn.DataTable.isDataTable('#manageOrderTable')) {
-        manageOrderTable = $("#manageOrderTable").DataTable({
-            'ajax': 'php_action/fetchOrder.php',
-            'order': [],
-            'columnDefs': [{
-                "targets": [0, 1, 2, 3, 4],
-                "orderable": false
-            }]
-        });
-    } else {
-        manageOrderTable = $('#manageOrderTable').DataTable();
-    }
-
-    // Initialize date picker for edit form
-    $('#editOrderDate').datepicker({
-        format: "yyyy-mm-dd",
-        autoclose: true,
-        todayHighlight: true
-    });
-
-    // Edit order button click
-    $(document).on('click', '.editOrder', function(e) {
-        e.preventDefault();
-        var orderId = $(this).data('id');
-        console.log("Edit clicked for order ID:", orderId);
-        
-        // Clear previous messages
-        $('#edit-order-messages').html('');
-        
-        // Reset form fields
-        $('#editOrderForm')[0].reset();
-        
-        $.ajax({
-            url: 'php_action/fetchSelectedOrder.php',
-            type: 'post',
-            data: {orderId: orderId},
-            dataType: 'json',
-            success: function(response) {
-                console.log("Fetched order data:", response);
-                
-                if(response.success === true) {
-                    // Set the order date
-                    $('#editOrderDate').datepicker('setDate', response.orderDate);
-                    
-                    // Set other fields
-                    $('#editClientName').val(response.clientName);
-                    $('#editClientContact').val(response.clientContact);
-                    $('#editOrderStatus').val(response.orderStatus);
-                    $('#editTotalAmount').val(response.totalAmount);
-                    $('#editOrderId').val(orderId);
-                    
-                    // Remove error messages
-                    $('.text-danger').remove();
-                    $('.form-group').removeClass('has-error');
-                    
-                    // Show modal
-                    $('#editOrderModal').modal('show');
-                } else {
-                    // Show error message
-                    $('#edit-order-messages').html('<div class="alert alert-danger">'+
-                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                        response.messages+
-                    '</div>');
+$(document).ready(function() {
+    // Initialize DataTable
+    manageOrderTable = $("#manageOrderTable").DataTable({
+        'ajax': 'php_action/fetchOrder.php',
+        'order': [],
+        'columns': [
+            { 
+                "data": 0,  // order_id
+                "visible": false
+            },
+            { 
+                "data": 1,  // order_date
+                "orderable": true
+            },
+            { 
+                "data": 2,  // client_name (staff name)
+                "orderable": true
+            },
+            { 
+                "data": 3,  // client_contact
+                "orderable": true
+            },
+            { 
+                "data": 4,  // total_items with tooltip
+                "orderable": true,
+                "render": function(data) {
+                    return data; // Data already contains HTML for tooltip
                 }
             },
-            error: function(xhr, status, error) {
-                console.error("Error details:");
-                console.error("Status:", status);
-                console.error("Error:", error);
-                console.error("Response:", xhr.responseText);
-                
-                // Show error message
-                $('#edit-order-messages').html('<div class="alert alert-danger">'+
-                    '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                    'Failed to fetch order details. Please try again.'+
-                '</div>');
+            { 
+                "data": 5,  // action buttons
+                "orderable": false,
+                "searchable": false
             }
-        });
+        ]
     });
 
-    // Edit order form submit
-    $("#editOrderForm").unbind('submit').bind('submit', function(e) {
+    // Initialize tooltips
+    $('[data-toggle="tooltip"]').tooltip();
+
+    // Add row button click
+    $("#addRowBtn").on('click', function() {
+        addNewRow();
+    });
+
+    // Edit add row button click
+    $("#editAddRowBtn").on('click', function() {
+        addNewEditRow();
+    });
+
+    // Product selection change
+    $(document).on('change', 'select[name="productName[]"]', function() {
+        var row = $(this).closest('tr');
+        var productId = $(this).val();
+        updateProductDetails(row, productId);
+    });
+
+    // Edit product selection change
+    $(document).on('change', 'select[name="editProductName[]"]', function() {
+        var row = $(this).closest('tr');
+        var productId = $(this).val();
+        updateProductDetails(row, productId, true);
+    });
+
+    // Quantity change
+    $(document).on('input', 'input[name="quantity[]"], input[name="editQuantity[]"]', function() {
+        var row = $(this).closest('tr');
+        updateRowTotal(row);
+    });
+
+    // Remove row button click
+    $(document).on('click', '.removeProductRowBtn', function() {
+        $(this).closest('tr').remove();
+    });
+
+    // Handle form submissions
+    $("#submitOrderForm").on('submit', function(e) {
         e.preventDefault();
         var form = $(this);
-
-        // Clear previous messages
-        $('#edit-order-messages').html('');
-        
-        // Remove existing error classes
-        $('.form-group').removeClass('has-error').removeClass('has-success');
-        $('.text-danger').remove();
-        
-        // Get form values
-        var orderDate = $("#editOrderDate").val();
-        var clientName = $("#editClientName").val();
-        var clientContact = $("#editClientContact").val();
-        var orderStatus = $("#editOrderStatus").val();
-        var totalAmount = $("#editTotalAmount").val();
-
-        // Validate form fields
-        var isValid = true;
-        
-        if(!orderDate) {
-            $("#editOrderDate").after('<p class="text-danger">Order Date is required</p>');
-            $("#editOrderDate").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!clientName) {
-            $("#editClientName").after('<p class="text-danger">Client Name is required</p>');
-            $("#editClientName").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!clientContact) {
-            $("#editClientContact").after('<p class="text-danger">Client Contact is required</p>');
-            $("#editClientContact").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!orderStatus) {
-            $("#editOrderStatus").after('<p class="text-danger">Order Status is required</p>');
-            $("#editOrderStatus").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!totalAmount) {
-            $("#editTotalAmount").after('<p class="text-danger">Total Amount is required</p>');
-            $("#editTotalAmount").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-
-        if(isValid) {
-            // Get CSRF token
-            var csrf_token = $('input[name="csrf_token"]').val();
-            console.log("CSRF Token:", csrf_token);
-            
-            // Submit form via AJAX
-            $.ajax({
-                url: form.attr('action'),
-                type: form.attr('method'),
-                data: form.serialize() + "&csrf_token=" + csrf_token,
-                dataType: 'json',
-                success: function(response) {
-                    console.log("Server response:", response);
-                    
-                    if(response.success) {
-                        // Show success message
-                        $("#edit-order-messages").html(
-                            '<div class="alert alert-success">'+
-                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-                            '</div>'
-                        );
-                        
-                        // Reset form
-                        $("#editOrderForm")[0].reset();
-                        
-                        // Close modal
-                        $("#editOrderModal").modal('hide');
-                        
-                        // Reload table
-                        manageOrderTable.ajax.reload(null, false);
-                        
-                    } else {
-                        $("#edit-order-messages").html(
-                            '<div class="alert alert-danger">'+
-                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                            '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
-                            '</div>'
-                        );
-                    }
-                },
-                error: function(xhr, status, error) {
-                    console.error("Ajax error:", error);
-                    $("#edit-order-messages").html(
-                        '<div class="alert alert-danger">'+
-                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Error updating order. Please try again.'+
-                        '</div>'
-                    );
-                }
-            });
-        }
-        
-        return false;
-    });
-
-    // Print order button click handler
-    $(document).on('click', '.printOrder', function(e) {
-        e.preventDefault();
-        var orderId = $(this).data('id');
-        console.log("Print clicked for order ID:", orderId);
         
         $.ajax({
-            url: 'php_action/printOrder.php',
-            type: 'post',
-            data: {orderId: orderId},
+            url: form.attr('action'),
+            type: form.attr('method'),
+            data: form.serialize(),
             dataType: 'json',
             success: function(response) {
-                console.log("Print response:", response);
-                
-                if(response.success === true) {
-                    // Create a new window for printing
-                    var printWindow = window.open('', '_blank');
-                    printWindow.document.write('<!DOCTYPE html><html><head>');
-                    printWindow.document.write('<title>Order Summary</title>');
-                    printWindow.document.write('</head><body>');
-                    printWindow.document.write(response.html);
-                    printWindow.document.write('</body></html>');
-                    printWindow.document.close();
-                    
-                    // Wait for content to load then print
-                    printWindow.onload = function() {
-                        printWindow.print();
-                        // Close the window after printing (optional)
-                        //printWindow.close();
-                    };
+                if(response.success) {
+                    $("#addOrderModal").modal('hide');
+                    $("#submitOrderForm")[0].reset();
+                    manageOrderTable.ajax.reload(null, false);
+                    $('.add-messages').html('<div class="alert alert-success">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                        '</div>');
                 } else {
-                    alert('Error printing order: ' + response.messages);
+                    $('.add-messages').html('<div class="alert alert-warning">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                        '</div>');
                 }
-            },
-            error: function(xhr, status, error) {
-                console.error("Error details:");
-                console.error("Status:", status);
-                console.error("Error:", error);
-                console.error("Response:", xhr.responseText);
-                alert("Error printing order. Please try again.");
             }
         });
     });
 
-    // Remove order function
-    window.removeOrder = function(orderId) {
-        if(orderId) {
-            $("#removeOrderBtn").unbind('click').bind('click', function() {
-                // Get CSRF token
-                var csrf_token = $('input[name="csrf_token"]').val();
-                console.log("CSRF Token:", csrf_token);
-                
-                $.ajax({
-                    url: 'php_action/removeOrder.php',
-                    type: 'post',
-                    data: {
-                        orderId: orderId,
-                        csrf_token: csrf_token
-                    },
-                    dataType: 'json',
-                    success: function(response) {
-                        if(response.success) {
-                            $("#removeOrderModal").modal('hide');
-                            manageOrderTable.ajax.reload(null, false);
-                            $('.remove-messages').html(
-                                '<div class="alert alert-success">'+
-                                '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                                '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-                                '</div>'
-                            );
-                        }
-                    }
-                });
-            });
-        }
-    };
-
-    // Add Order form submission
-    $("#submitOrderForm").unbind('submit').bind('submit', function(e) {
+    $("#editOrderForm").on('submit', function(e) {
         e.preventDefault();
         var form = $(this);
-
-        // Clear previous messages
-        $('#add-order-messages').html('');
         
-        // Remove existing error classes
-        $('.form-group').removeClass('has-error').removeClass('has-success');
-        $('.text-danger').remove();
-        
-        // Get form values
-        var orderDate = $("#orderDate").val();
-        var clientName = $("#clientName").val();
-        var clientContact = $("#clientContact").val();
-        var restockReason = $("#restock_reason").val();
-
-        // Validate form fields
-        var isValid = true;
-        
-        if(!orderDate) {
-            $("#orderDate").after('<p class="text-danger">Order Date is required</p>');
-            $("#orderDate").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!clientName) {
-            $("#clientName").after('<p class="text-danger">Staff Name is required</p>');
-            $("#clientName").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-        
-        if(!clientContact) {
-            $("#clientContact").after('<p class="text-danger">Staff Contact is required</p>');
-            $("#clientContact").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-
-        if(!restockReason) {
-            $("#restock_reason").after('<p class="text-danger">Restock Reason is required</p>');
-            $("#restock_reason").closest('.form-group').addClass('has-error');
-            isValid = false;
-        }
-
-        // Validate product selections
-        var productCount = 0;
-        var hasEmptyProduct = false;
-        var hasInvalidQuantity = false;
-
-        $('select[name="productName[]"]').each(function() {
-            if($(this).val()) {
-                productCount++;
-                var row = $(this).closest('tr').attr('id').replace('row', '');
-                var quantity = $("#quantity" + row).val();
-                
-                if(!quantity || quantity <= 0) {
-                    $("#quantity" + row).after('<p class="text-danger">Valid quantity is required</p>');
-                    $("#quantity" + row).closest('.form-group').addClass('has-error');
-                    hasInvalidQuantity = true;
+        $.ajax({
+            url: form.attr('action'),
+            type: form.attr('method'),
+            data: form.serialize(),
+            dataType: 'json',
+            success: function(response) {
+                if(response.success) {
+                    $("#editOrderModal").modal('hide');
+                    manageOrderTable.ajax.reload(null, false);
+                    $('.edit-messages').html('<div class="alert alert-success">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                        '</div>');
+                } else {
+                    $('.edit-messages').html('<div class="alert alert-warning">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                        '</div>');
                 }
-            } else if($(this).closest('tr').find('input[name="quantity[]"]').val()) {
-                hasEmptyProduct = true;
             }
         });
-
-        if(productCount === 0) {
-            $('#add-order-messages').html('<div class="alert alert-danger">'+
-                '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Please select at least one product'+
-            '</div>');
-            isValid = false;
-        }
-
-        if(hasEmptyProduct) {
-            $('#add-order-messages').html('<div class="alert alert-danger">'+
-                '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Please select products for all rows with quantities'+
-            '</div>');
-            isValid = false;
-        }
-
-        if(hasInvalidQuantity) {
-            isValid = false;
-        }
-
-        if(isValid) {
-            // Get CSRF token
-            var csrf_token = $('input[name="csrf_token"]').val();
-            
-            // Show loading state
-            $("#createOrderBtn").button('loading');
-            
-            // Submit form via AJAX
-            $.ajax({
-                url: form.attr('action'),
-                type: form.attr('method'),
-                data: form.serialize() + "&csrf_token=" + csrf_token,
-                dataType: 'json',
-                success: function(response) {
-                    console.log("Server response:", response);
-                    $("#createOrderBtn").button('reset');
-                    
-                    if(response.success) {
-                        // Show success message
-                        $('#add-order-messages').html('<div class="alert alert-success">'+
-                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                            '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
-                        '</div>');
-
-                        // Reset form
-                        $("#submitOrderForm")[0].reset();
-                        $(".text-danger").remove();
-                        $('.form-group').removeClass('has-error').removeClass('has-success');
-                        
-                        // Reset product table
-                        $("#productTable tbody").html('<tr id="row1" class="0">'+
-                            '<td style="margin-left:20px;">'+
-                                '<div class="form-group">'+
-                                '<select class="form-control" name="productName[]" id="productName1" onchange="getProductData(1)">'+
-                                    '<option value="">~~SELECT~~</option>'+
-                                    // Products will be populated via AJAX
-                                '</select>'+
-                                '</div>'+
-                            '</td>'+
-                            '<td style="padding-left:20px;">'+
-                                '<input type="text" name="rate[]" id="rate1" autocomplete="off" disabled="true" class="form-control" />'+
-                                '<input type="hidden" name="rateValue[]" id="rateValue1" autocomplete="off" class="form-control" />'+
-                            '</td>'+
-                            '<td style="padding-left:20px;">'+
-                                '<div class="form-group">'+
-                                '<input type="number" name="quantity[]" id="quantity1" onkeyup="getTotal(1)" autocomplete="off" class="form-control" min="1" />'+
-                                '</div>'+
-                            '</td>'+
-                            '<td style="padding-left:20px;">'+
-                                '<input type="text" name="total[]" id="total1" autocomplete="off" class="form-control" disabled="true" />'+
-                                '<input type="hidden" name="totalValue[]" id="totalValue1" autocomplete="off" class="form-control" />'+
-                            '</td>'+
-                            '<td>'+
-                                '<button class="btn btn-danger removeProductRowBtn" type="button" onclick="removeProductRow(1)"><i class="glyphicon glyphicon-trash"></i></button>'+
-                            '</td>'+
-                        '</tr>');
-
-                        // Populate products in the first row
-                        $.ajax({
-                            url: 'php_action/fetchProductData.php',
-                            type: 'post',
-                            dataType: 'json',
-                            success: function(data) {
-                                $.each(data, function(index, value) {
-                                    $("#productName1").append('<option value="'+value[0]+'">'+value[1]+'</option>');
-                                });
-                            }
-                        });
-                        
-                        // Close modal
-                        $("#addOrderModal").modal('hide');
-                        
-                        // Reload table
-                        manageOrderTable.ajax.reload(null, false);
-                        
-                    } else {
-                        // Show error message
-                        $('#add-order-messages').html('<div class="alert alert-danger">'+
-                            '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                            '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
-                        '</div>');
-                    }
-                },
-                error: function(xhr, status, error) {
-                    $("#createOrderBtn").button('reset');
-                    console.error("Error details:", {status: status, error: error, response: xhr.responseText});
-                    
-                    // Show error message
-                    $('#add-order-messages').html('<div class="alert alert-danger">'+
-                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
-                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> Failed to create order. Please try again.'+
-                    '</div>');
-                }
-            });
-        }
-        
-        return false;
     });
 });
+
+// Add new row to product table
+function addNewRow() {
+    var tableLength = $("#productTable tbody tr").length;
+    var tableRow = tableLength + 1;
+    
+    var tr = '<tr id="row'+tableRow+'" data-id="'+tableRow+'">' +
+             '<td>' +
+             '<select class="form-control" name="productName[]" id="productName'+tableRow+'" required>' +
+             '<option value="">~~SELECT~~</option>' +
+             '</select>' +
+             '</td>' +
+             '<td><input type="text" name="rate[]" id="rate'+tableRow+'" class="form-control" readonly /></td>' +
+             '<td><input type="number" name="quantity[]" id="quantity'+tableRow+'" class="form-control" min="1" required /></td>' +
+             '<td><input type="text" name="total[]" id="total'+tableRow+'" class="form-control" readonly /></td>' +
+             '<td><button type="button" class="btn btn-danger removeProductRowBtn" data-id="'+tableRow+'"><i class="glyphicon glyphicon-trash"></i></button></td>' +
+             '</tr>';
+    
+    $("#productTable tbody").append(tr);
+
+    // Fetch and populate product options
+    $.ajax({
+        url: 'php_action/fetchProductData.php',
+        type: 'post',
+        dataType: 'json',
+        success: function(response) {
+            var select = $("#productName"+tableRow);
+            response.forEach(function(product) {
+                select.append('<option value="'+product.product_id+'">'+product.product_name+'</option>');
+            });
+        }
+    });
+}
+
+// Add new row to edit product table
+function addNewEditRow() {
+    var tableLength = $("#editProductTable tbody tr").length;
+    var tableRow = tableLength + 1;
+    
+    var tr = '<tr id="editRow'+tableRow+'" data-id="'+tableRow+'">' +
+             '<td>' +
+             '<select class="form-control" name="editProductName[]" id="editProductName'+tableRow+'" required>' +
+             '<option value="">~~SELECT~~</option>' +
+             '</select>' +
+             '</td>' +
+             '<td><input type="text" name="editRate[]" id="editRate'+tableRow+'" class="form-control" readonly /></td>' +
+             '<td><input type="number" name="editQuantity[]" id="editQuantity'+tableRow+'" class="form-control" min="1" required /></td>' +
+             '<td><input type="text" name="editTotal[]" id="editTotal'+tableRow+'" class="form-control" readonly /></td>' +
+             '<td><button type="button" class="btn btn-danger removeProductRowBtn" data-id="'+tableRow+'"><i class="glyphicon glyphicon-trash"></i></button></td>' +
+             '</tr>';
+    
+    $("#editProductTable tbody").append(tr);
+
+    // Fetch and populate product options
+    $.ajax({
+        url: 'php_action/fetchProductData.php',
+        type: 'post',
+        dataType: 'json',
+        success: function(response) {
+            var select = $("#editProductName"+tableRow);
+            response.forEach(function(product) {
+                select.append('<option value="'+product.product_id+'">'+product.product_name+'</option>');
+            });
+        }
+    });
+}
+
+// Update product details when selected
+function updateProductDetails(row, productId, isEdit = false) {
+    if(!productId) return;
+
+    var prefix = isEdit ? 'edit' : '';
+    
+    $.ajax({
+        url: 'php_action/fetchSelectedProduct.php',
+        type: 'post',
+        data: {productId: productId},
+        dataType: 'json',
+        success: function(response) {
+            if(response.success) {
+                row.find('input[name="'+prefix+'rate[]"]').val(response.product.rate);
+                var quantity = row.find('input[name="'+prefix+'quantity[]"]').val() || 1;
+                updateRowTotal(row);
+            }
+        }
+    });
+}
+
+// Update row total when quantity changes
+function updateRowTotal(row) {
+    var rate = parseFloat(row.find('input[name$="rate[]"]').val()) || 0;
+    var quantity = parseInt(row.find('input[name$="quantity[]"]').val()) || 0;
+    var total = rate * quantity;
+    row.find('input[name$="total[]"]').val(total.toFixed(2));
+}
+
+// Edit order
+function editOrder(orderId) {
+    $("#editOrderForm")[0].reset();
+    $('.edit-messages').html('');
+    
+    $.ajax({
+        url: 'php_action/fetchSelectedOrder.php',
+        type: 'post',
+        data: {orderId: orderId},
+        dataType: 'json',
+        success: function(response) {
+            if(response.success) {
+                // Set order details
+                $("#orderId").val(orderId);
+                $("#editOrderDate").val(response.order[0].order_date);
+                $("#editClientName").val(response.order[0].client_name);
+                $("#editClientContact").val(response.order[0].client_contact);
+                $("#editRestockReason").val(response.order[0].restock_reason);
+
+                // Clear existing rows
+                $("#editProductTable tbody").empty();
+
+                // Add rows for each order item
+                response.orderItems.forEach(function(item, index) {
+                    var tableRow = index + 1;
+                    
+                    var tr = '<tr id="editRow'+tableRow+'" data-id="'+tableRow+'">' +
+                            '<td>' +
+                            '<select class="form-control" name="editProductName[]" id="editProductName'+tableRow+'" required>' +
+                            '<option value="">~~SELECT~~</option>' +
+                            '</select>' +
+                            '</td>' +
+                            '<td><input type="text" name="editRate[]" id="editRate'+tableRow+'" class="form-control" readonly value="'+item.rate+'" /></td>' +
+                            '<td><input type="number" name="editQuantity[]" id="editQuantity'+tableRow+'" class="form-control" min="1" required value="'+item.quantity+'" /></td>' +
+                            '<td><input type="text" name="editTotal[]" id="editTotal'+tableRow+'" class="form-control" readonly value="'+(item.rate * item.quantity).toFixed(2)+'" /></td>' +
+                            '<td><button type="button" class="btn btn-danger removeProductRowBtn" data-id="'+tableRow+'"><i class="glyphicon glyphicon-trash"></i></button></td>' +
+                            '</tr>';
+                    
+                    $("#editProductTable tbody").append(tr);
+                    
+                    // Populate product dropdown
+                    var select = $("#editProductName"+tableRow);
+                    response.products.forEach(function(product) {
+                        var selected = (product.product_id == item.product_id) ? 'selected' : '';
+                        select.append('<option value="'+product.product_id+'" '+selected+'>'+product.product_name+'</option>');
+                    });
+                });
+
+                $("#editOrderModal").modal('show');
+            } else {
+                alert('Error fetching order details');
+            }
+        }
+    });
+}
+
+// Print order
+function printOrder(orderId) {
+    if(!orderId) return;
+
+    $.ajax({
+        url: 'php_action/printOrder.php',
+        type: 'post',
+        data: {orderId: orderId},
+        dataType: 'json',
+        success: function(response) {
+            if(response.success) {
+                var printWindow = window.open('', '_blank');
+                printWindow.document.write(response.html);
+                printWindow.document.close();
+                printWindow.print();
+            } else {
+                alert('Error printing order: ' + response.messages);
+            }
+        }
+    });
+}
+
+// Remove order
+function removeOrder(orderId) {
+    if(!orderId) return;
+
+    $("#removeOrderBtn").unbind('click').bind('click', function() {
+        $.ajax({
+            url: 'php_action/removeOrder.php',
+            type: 'post',
+            data: {orderId: orderId},
+            dataType: 'json',
+            success: function(response) {
+                if(response.success) {
+                    $("#removeOrderModal").modal('hide');
+                    manageOrderTable.ajax.reload(null, false);
+                    $('.remove-messages').html('<div class="alert alert-success">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-ok-sign"></i></strong> '+ response.messages +
+                        '</div>');
+                } else {
+                    $('.removeOrderMessages').html('<div class="alert alert-warning">'+
+                        '<button type="button" class="close" data-dismiss="alert">&times;</button>'+
+                        '<strong><i class="glyphicon glyphicon-exclamation-sign"></i></strong> '+ response.messages +
+                        '</div>');
+                }
+            }
+        });
+    });
+}

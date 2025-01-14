@@ -20,9 +20,10 @@ $result = $stmt->get_result();
 if($result->num_rows > 0) {
     $valid['order'] = $result->fetch_assoc();
 
-    // Fetch order items
-    $itemSql = "SELECT oi.order_item_id, oi.product_id, oi.quantity, oi.rate, oi.total,
-                p.product_name
+    // Fetch order items with product details
+    $itemSql = "SELECT oi.order_item_id, oi.product_id, oi.quantity,
+                p.product_name, p.rate,
+                (oi.quantity * p.rate) as total
                 FROM order_item oi
                 JOIN product p ON oi.product_id = p.product_id
                 WHERE oi.order_id = ?";
