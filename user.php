@@ -189,12 +189,12 @@
       <div class="modal-body">
 
       	<div class="removeUserMessages"></div>
-
+        <?php echo CSRFProtection::getTokenField(); ?>
         <p>Do you really want to remove ?</p>
       </div>
-      <div class="modal-footer removeProductFooter">
+      <div class="modal-footer removeUserFooter">
         <button type="button" class="btn btn-default" data-dismiss="modal"> <i class="glyphicon glyphicon-remove-sign"></i> Close</button>
-        <button type="button" class="btn btn-primary" id="removeProductBtn" data-loading-text="Loading..."> <i class="glyphicon glyphicon-ok-sign"></i> Save changes</button>
+        <button type="button" class="btn btn-primary" id="removeUserBtn" data-loading-text="Loading..."> <i class="glyphicon glyphicon-ok-sign"></i> Save changes</button>
       </div>
     </div><!-- /.modal-content -->
   </div><!-- /.modal-dialog -->
